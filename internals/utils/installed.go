@@ -5,6 +5,9 @@ import tea "charm.land/bubbletea/v2"
 type BackMsg struct{}
 
 type InstalledModel struct {
+	width int
+	height int
+	
 }
 
 func (m InstalledModel) Init() tea.Cmd {

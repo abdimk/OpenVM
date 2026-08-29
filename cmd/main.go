@@ -213,23 +213,29 @@ func (m model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() tea.View {
-	var content string
+	var screenContent string
+	
 	switch m.screen{
 		case InstalledScreen:
-			return m.installed.View()
+			screenContent = m.installed.View().Content
+			
 		case MainMenuScreen:
-			content = lipgloss.JoinVertical(
+			screenContent = lipgloss.JoinVertical(
 				lipgloss.Left,
-				m.header(),
-				m.description(),
 				m.buildListTitle(),
 				m.list.View(),
-				
 			)
 		default:
-			content = "Unknown Screen"
+			screenContent = "Unknown Screen"
 	}
-	view := tea.NewView(content)
+	
+	screenContent = lipgloss.JoinVertical(
+		lipgloss.Left,
+		m.header(),
+		m.description(),
+		screenContent,
+	)
+	view := tea.NewView(screenContent)
 	view.AltScreen = true
 	return view
 }
