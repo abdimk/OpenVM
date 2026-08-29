@@ -59,7 +59,7 @@ func newModel() *model {
 			installPackage,
 		),
 		screen: MainMenuScreen,
-		installed: utils.InstalledModel{},
+		installed: *utils.NewInstalledModel(),
 	}
 }
 
@@ -188,12 +188,22 @@ func (m model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 				break
 			}
 			switch selected.TitleText {
+				case "Install":
+				
 				case "Installed":
 					m.screen = InstalledScreen
 					return m, m.installed.Init()
-					
+				case "Check For Update":
+			
+				case "Repair":
+				
+				case "Doctor":
+				
+				case "Completion":
+				
 				case "Version":
-					fmt.Println("Selected:", selected.TitleText)
+					// fmt.Println("Selected:", selected.TitleText)
+				
 				case "Exit":
 					return m, tea.Quit
 			}
