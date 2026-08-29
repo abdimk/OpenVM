@@ -2,14 +2,23 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	ui "github.com/abdimk/openvm/cmd/ui"
-	// "github.com/abdimk/openvm/internal/utils"
+	"github.com/abdimk/openvm/internals/utils"
 )
+
+type Screen int
+
+const (
+	MainMenuScreen Screen = iota
+	InstalledScreen
+)
+
 
 type model struct {
 	width          int
@@ -18,17 +27,21 @@ type model struct {
 	list           *ui.ListModel
 	table          *ui.TableModel
 	packageManager *ui.PackageManagerModel
+	
+	screen Screen
+	installed utils.InstalledModel
 }
 
 func newModel() *model {
 	items := []ui.Item{
-		{TitleText: "Installed", DescriptionText: "List all the installed languages and tools"},
-		{TitleText: "Completion", DescriptionText: "Generate shell Completion scripts"},
-		{TitleText: "Doctor", DescriptionText: "Check enviroment and print connection info"},
-		{TitleText: "Mock", DescriptionText: "Mock data generation commands"},
-		{TitleText: "Receiver", DescriptionText: "Print version information"},
-		{TitleText: "Whoami", DescriptionText: "Show the current user"},
-		{TitleText: "Version", DescriptionText: "Check the version information for OpenVM"},
+		{TitleText: "Install", DescriptionText: "Install a programming language or development tool"},
+		{TitleText: "Installed", DescriptionText: "List all installed languages and tools"},
+		{TitleText: "Check For Update", DescriptionText: "Check for and update installed tools"},
+		{TitleText: "Repair", DescriptionText: "Detect and repair broken tool installations"},
+		{TitleText: "Doctor", DescriptionText: "Check your environment and diagnose configuration issues"},
+		{TitleText: "Completion", DescriptionText: "Generate shell completion scripts"},
+		{TitleText: "Version", DescriptionText: "Show OpenVM version information"},
+		{TitleText: "Exit", DescriptionText: "Exit OpenVM"},
 	}
 
 	packages := []string{
@@ -45,6 +58,8 @@ func newModel() *model {
 			packages,
 			installPackage,
 		),
+		screen: MainMenuScreen,
+		installed: utils.InstalledModel{},
 	}
 }
 
@@ -79,6 +94,40 @@ func (m model) description() string {
 			"It simplifies installing, updating, switching between versions, and repairing tools from one unified terminal interface.",
 	)
 }
+func (m model) buildListTitle() string {
+	if m.width <= 0 {
+		return "Available Commands"
+	}
+
+	// Left: bold, white text, default background, slightly indented
+	leftBlock := lipgloss.NewStyle().
+	    Bold(true).
+	    Foreground(lipgloss.Color("#ffffff")).
+	    PaddingLeft(2).
+		PaddingBottom(0).
+	    Render("Available Commands")
+	
+	rightBlock := lipgloss.NewStyle().
+	    Foreground(lipgloss.Color("#ffffff")).
+	    // Border(lipgloss.RoundedBorder()).
+	    PaddingRight(2).
+	    PaddingLeft(1).
+	    Render(fmt.Sprintf("Machine: [%s]", utils.GetMachineType()))
+		leftW := lipgloss.Width(leftBlock)
+		rightW := lipgloss.Width(rightBlock)
+
+	gap := m.width - leftW - rightW
+	if gap < 0 {
+		gap = 0
+	}
+
+	return lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		leftBlock,
+		strings.Repeat(" ", gap),
+		rightBlock,
+	)
+}
 
 func (m *model) updateLayout() {
 	if m.width <= 0 || m.height <= 0 {
@@ -87,18 +136,45 @@ func (m *model) updateLayout() {
 
 	headerHeight := lipgloss.Height(m.header())
 	descriptionHeight := lipgloss.Height(m.description())
+	titleHeight := lipgloss.Height(m.buildListTitle()) 
 	spinnerHeight := lipgloss.Height(m.loadingSpinner.View())
 
-	usedHeight := headerHeight + descriptionHeight + spinnerHeight
+	usedHeight := headerHeight + descriptionHeight+ titleHeight + spinnerHeight
 	listHeight := m.height - usedHeight
 	if listHeight < 1 {
 		listHeight = 1
 	}
 
 	m.list.SetSize(m.width, listHeight)
+	
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch m.screen {
+
+	case InstalledScreen:
+		var cmd tea.Cmd
+
+		updatedModel, cmd := m.installed.Update(msg)
+		m.installed = updatedModel.(utils.InstalledModel)
+
+		// Go back to the main menu.
+		if keyMsg, ok := msg.(tea.KeyMsg); ok {
+			if keyMsg.String() == "esc" || keyMsg.String() == "backspace" {
+				m.screen = MainMenuScreen
+			}
+		}
+
+		return m, cmd
+
+	case MainMenuScreen:
+		return m.updateMainMenu(msg)
+	}
+
+	return m, nil
+}
+
+func (m model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd1 tea.Cmd
 
 	switch msg := msg.(type) {
@@ -112,8 +188,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				break
 			}
 			switch selected.TitleText {
-			case "Version":
-				fmt.Println("Selected:", selected.TitleText)
+				case "Installed":
+					m.screen = InstalledScreen
+					return m, m.installed.Init()
+					
+				case "Version":
+					fmt.Println("Selected:", selected.TitleText)
+				case "Exit":
+					return m, tea.Quit
 			}
 		}
 
@@ -131,12 +213,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() tea.View {
-	content := lipgloss.JoinVertical(
-		lipgloss.Left,
-		m.header(),
-		m.description(),
-		m.list.View(),
-	)
+	var content string
+	switch m.screen{
+		case InstalledScreen:
+			return m.installed.View()
+		case MainMenuScreen:
+			content = lipgloss.JoinVertical(
+				lipgloss.Left,
+				m.header(),
+				m.description(),
+				m.buildListTitle(),
+				m.list.View(),
+				
+			)
+		default:
+			content = "Unknown Screen"
+	}
 	view := tea.NewView(content)
 	view.AltScreen = true
 	return view

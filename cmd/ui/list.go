@@ -3,7 +3,7 @@ package ui
 import (
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2" // add this import
+	"charm.land/lipgloss/v2" 
 )
 
 type Item struct {
@@ -65,6 +65,7 @@ func New(
 
 	l.Title = title
 	l.SetShowStatusBar(false)
+	l.SetShowTitle(false)
 
 	return &ListModel{
 		list: l,
@@ -88,7 +89,9 @@ func (m ListModel) View() string {
 func (m *ListModel) SetSize(width, height int) {
 	m.list.SetSize(width, height)
 }
-
+func (m *ListModel) SetTitle(title string) {
+	m.list.Title = title
+}
 func (m *ListModel) SetItems(items []Item) tea.Cmd {
 	listItems := make([]list.Item, len(items))
 	for i, item := range items {
