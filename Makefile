@@ -7,6 +7,8 @@ build:
 
 run:build
 	@./bin/$(BINARY) $(ARGS)
+
+test:
 	
 dev:run
 	

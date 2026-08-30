@@ -10,12 +10,12 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// InstalledPackageMsg is sent when a package finishes installing.
+
 type InstalledPackageMsg struct {
 	Package string
 }
 
-// PackageManagerModel is a reusable package installation UI component.
+
 type PackageManagerModel struct {
 	packages []string
 	index    int
@@ -27,8 +27,6 @@ type PackageManagerModel struct {
 
 	done bool
 
-	// install is the function responsible for installing a package.
-	// The component doesn't care how installation actually happens.
 	install func(string) tea.Cmd
 }
 
@@ -43,7 +41,7 @@ var (
 			Foreground(lipgloss.Color("42"))
 )
 
-// NewPackageManager creates a new reusable package manager component.
+
 func NewPackageManager(
 	packages []string,
 	install func(string) tea.Cmd,
@@ -68,7 +66,7 @@ func NewPackageManager(
 	}
 }
 
-// Init starts installing the first package.
+
 func (m *PackageManagerModel) Init() tea.Cmd {
 	if len(m.packages) == 0 {
 		m.done = true
@@ -81,7 +79,6 @@ func (m *PackageManagerModel) Init() tea.Cmd {
 	)
 }
 
-// Update handles Bubble Tea messages.
 func (m *PackageManagerModel) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 
@@ -90,32 +87,31 @@ func (m *PackageManagerModel) Update(msg tea.Msg) tea.Cmd {
 		m.height = msg.Height
 
 	case InstalledPackageMsg:
-		// Ignore duplicate messages after completion.
+		
 		if m.done {
 			return nil
 		}
 
-		// Current package finished.
+	
 		currentPackage := m.packages[m.index]
 
-		// If this was the last package, finish.
+	
 		if m.index >= len(m.packages)-1 {
 			m.done = true
 
 			return m.progress.SetPercent(1)
 		}
 
-		// Move to the next package.
 		m.index++
 
 		progressCmd := m.progress.SetPercent(
 			float64(m.index) / float64(len(m.packages)),
 		)
 
-		// Start installing the next package.
+	
 		installCmd := m.install(m.packages[m.index])
 
-		// You could log the completed package here if needed.
+	
 		_ = currentPackage
 
 		return tea.Batch(
@@ -141,7 +137,7 @@ func (m *PackageManagerModel) Update(msg tea.Msg) tea.Cmd {
 	return nil
 }
 
-// View renders the package manager.
+
 func (m PackageManagerModel) View() string {
 	if len(m.packages) == 0 {
 		return "No packages to install."
@@ -156,11 +152,9 @@ func (m PackageManagerModel) View() string {
 
 	total := len(m.packages)
 
-	// Width of the package count.
-	// Example: 1/10 needs the same width as 10/10.
 	countWidth := lipgloss.Width(fmt.Sprintf("%d", total))
 
-	// Example: 1/3
+
 	packageCount := fmt.Sprintf(
 		" %*d/%*d",
 		countWidth,
@@ -172,7 +166,7 @@ func (m PackageManagerModel) View() string {
 	spin := m.spinner.View() + " "
 	prog := m.progress.View()
 
-	// Calculate remaining space for package information.
+
 	cellsAvailable := max(
 		0,
 		m.width-lipgloss.Width(

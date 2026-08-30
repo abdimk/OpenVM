@@ -20,7 +20,6 @@ const (
 	Version
 )
 
-
 type model struct {
 	width          int
 	height         int
@@ -28,10 +27,10 @@ type model struct {
 	list           *ui.ListModel
 	table          *ui.TableModel
 	packageManager *ui.PackageManagerModel
-	
-	screen Screen
+
+	screen    Screen
 	installed utils.InstalledModel
-	version utils.VersionModel
+	version   utils.VersionModel
 }
 
 func newModel() *model {
@@ -60,9 +59,9 @@ func newModel() *model {
 			packages,
 			installPackage,
 		),
-		screen: MainMenuScreen,
+		screen:    MainMenuScreen,
 		installed: utils.NewInstalledModel(),
-		version: utils.NewVersionModel(),
+		version:   utils.NewVersionModel(),
 	}
 }
 
@@ -104,20 +103,20 @@ func (m model) buildListTitle() string {
 
 	// Left: bold, white text, default background, slightly indented
 	leftBlock := lipgloss.NewStyle().
-	    Bold(true).
-	    Foreground(lipgloss.Color("#ffffff")).
-	    PaddingLeft(2).
+		Bold(true).
+		Foreground(lipgloss.Color("#ffffff")).
+		PaddingLeft(2).
 		PaddingBottom(0).
-	    Render("Available Commands")
-	
+		Render("Available Commands")
+
 	rightBlock := lipgloss.NewStyle().
-	    Foreground(lipgloss.Color("#ffffff")).
-	    // Border(lipgloss.RoundedBorder()).
-	    PaddingRight(2).
-	    PaddingLeft(1).
-	    Render(fmt.Sprintf("Machine: [%s]", utils.GetMachineType()))
-		leftW := lipgloss.Width(leftBlock)
-		rightW := lipgloss.Width(rightBlock)
+		Foreground(lipgloss.Color("#ffffff")).
+		// Border(lipgloss.RoundedBorder()).
+		PaddingRight(2).
+		PaddingLeft(1).
+		Render(fmt.Sprintf("Machine: [%s]", utils.GetMachineType()))
+	leftW := lipgloss.Width(leftBlock)
+	rightW := lipgloss.Width(rightBlock)
 
 	gap := m.width - leftW - rightW
 	if gap < 0 {
@@ -131,7 +130,6 @@ func (m model) buildListTitle() string {
 		rightBlock,
 	)
 }
-
 func (m *model) updateLayout() {
 	if m.width <= 0 || m.height <= 0 {
 		return
@@ -139,36 +137,68 @@ func (m *model) updateLayout() {
 
 	headerHeight := lipgloss.Height(m.header())
 	descriptionHeight := lipgloss.Height(m.description())
-	titleHeight := lipgloss.Height(m.buildListTitle()) 
-	spinnerHeight := lipgloss.Height(m.loadingSpinner.View())
 
-	usedHeight := headerHeight + descriptionHeight+ titleHeight + spinnerHeight
-	listHeight := m.height - usedHeight
-	if listHeight < 1 {
-		listHeight = 1
+	footer := ui.NewFooter(
+		m.width,
+		m.footerText(),
+	).View()
+
+	footerHeight := lipgloss.Height(footer)
+
+	contentHeight := m.height -
+		headerHeight -
+		descriptionHeight -
+		footerHeight
+
+	if contentHeight < 1 {
+		contentHeight = 1
 	}
 
-	m.list.SetSize(m.width, listHeight)
-	
+	switch m.screen {
+	case MainMenuScreen:
+		titleHeight := lipgloss.Height(m.buildListTitle())
+
+		listHeight := contentHeight - titleHeight
+
+		if listHeight < 1 {
+			listHeight = 1
+		}
+
+		m.list.SetSize(m.width, listHeight)
+
+	case InstalledScreen:
+		m.installed.SetSize(m.width, contentHeight)
+
+	case Version:
+		m.version.SetSize(m.width, contentHeight)
+	}
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if _,ok := msg.(utils.BackMsg); ok {
+	if _, ok := msg.(utils.BackMsg); ok {
 		m.screen = MainMenuScreen
-		return m,nil
+		m.updateLayout()
+		return m, nil
 	}
-	
+
 	switch m.screen {
-		case InstalledScreen:	
-			updatedModel, cmd := m.installed.Update(msg)
-			m.installed = updatedModel.(utils.InstalledModel)
-		
-			return m, cmd
-		case Version:
-			updateModel, cmd := m.version.Update(msg)
-			m.version = updateModel.(utils.VersionModel)
-			return m, cmd
-			
+	case InstalledScreen:
+		updatedModel, cmd := m.installed.Update(msg)
+		m.installed = updatedModel.(utils.InstalledModel)
+
+		return m, cmd
+	case Version:
+		if ws, ok := msg.(tea.WindowSizeMsg); ok {
+			m.width = ws.Width
+			m.height = ws.Height
+			m.updateLayout()
+			return m, nil
+		}
+
+		updateModel, cmd := m.version.Update(msg)
+		m.version = updateModel.(utils.VersionModel)
+		return m, cmd
+
 	case MainMenuScreen:
 		return m.updateMainMenu(msg)
 	}
@@ -191,45 +221,30 @@ func (m model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 				break
 			}
 			switch selected.TitleText {
-				case "Install":
-				
-				case "Installed":
-					m.installed = utils.NewInstalledModel()
-					m.screen = InstalledScreen
-					return m, m.installed.Init()
-				case "Check For Update":
-			
-				case "Repair":
-				
-				case "Doctor":
-				
-				case "Completion":
-				
-				case "Version":
-					m.screen = Version
+			case "Install":
 
-					var cmds []tea.Cmd
+			case "Installed":
+				m.installed = utils.NewInstalledModel()
+				m.screen = InstalledScreen
+				m.updateLayout()
 
-					cmds = append(cmds, m.version.Init())
+				return m, m.installed.Init()
+			case "Check For Update":
 
-					if m.width > 0 && m.height > 0 {
-						var cmd tea.Cmd
+			case "Repair":
 
-						updatedModel, cmd := m.version.Update(
-							tea.WindowSizeMsg{
-								Width:  m.width,
-								Height: m.height,
-							},
-						)
+			case "Doctor":
 
-						m.version = updatedModel.(utils.VersionModel)
-						cmds = append(cmds, cmd)
-					}
+			case "Completion":
 
-					return m, tea.Batch(cmds...)
-				
-				case "Exit":
-					return m, tea.Quit
+			case "Version":
+				m.screen = Version
+				m.updateLayout()
+
+				return m, m.version.Init()
+
+			case "Exit":
+				return m, tea.Quit
 			}
 		}
 
@@ -237,7 +252,7 @@ func (m model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.updateLayout()
-		
+
 		updatedInstalled, ic := m.installed.Update(msg)
 		m.installed = updatedInstalled.(utils.InstalledModel)
 		installedCmd = ic
@@ -247,37 +262,95 @@ func (m model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmd2 := m.list.Update(msg)
 	cmd4 := m.packageManager.Update(msg)
 
-	return m, tea.Batch(cmd1, cmd2, cmd4,installedCmd)
+	return m, tea.Batch(cmd1, cmd2, cmd4, installedCmd)
 }
 
+func (m model) footerText() string {
+	switch m.screen {
 
+	case MainMenuScreen:
+		return "↑/k up • ↓/j down • enter select • q quit"
+
+	case InstalledScreen:
+		return "↑/k up • ↓/j down • esc back"
+
+	case Version:
+		return "esc • back"
+	}
+
+	return ""
+}
 func (m model) View() tea.View {
 	var screenContent string
-	
-	switch m.screen{
-		case InstalledScreen:
-			screenContent = m.installed.View().Content
-		case Version:
+
+	footer := ui.NewFooter(
+		m.width,
+		m.footerText(),
+	).View()
+
+	switch m.screen {
+
+	case InstalledScreen:
+		screenContent = m.installed.View().Content
+
+	case Version:
 		screenContent = m.version.View().Content
-			
-		case MainMenuScreen:
-			screenContent = lipgloss.JoinVertical(
-				lipgloss.Left,
-				m.buildListTitle(),
-				m.list.View(),
-			)
-		default:
-			screenContent = "Unknown Screen"
+
+	case MainMenuScreen:
+		listView := m.list.View()
+
+		availableHeight := m.height -
+			lipgloss.Height(m.header()) -
+			lipgloss.Height(m.description()) -
+			lipgloss.Height(m.buildListTitle()) -
+			lipgloss.Height(footer)
+
+		if availableHeight < 1 {
+			availableHeight = 1
+		}
+
+		listView = lipgloss.NewStyle().
+			Height(availableHeight).
+			Render(listView)
+
+		screenContent = lipgloss.JoinVertical(
+			lipgloss.Left,
+			m.buildListTitle(),
+			listView,
+		)
+
+	default:
+		screenContent = "Unknown Screen"
 	}
-	
-	screenContent = lipgloss.JoinVertical(
+
+	top := lipgloss.JoinVertical(
 		lipgloss.Left,
 		m.header(),
 		m.description(),
 		screenContent,
 	)
-	view := tea.NewView(screenContent)
+
+	// Calculate exactly how much space is left before the footer.
+	spacerHeight := m.height - lipgloss.Height(top) - lipgloss.Height(footer)
+
+	if spacerHeight < 0 {
+		spacerHeight = 0
+	}
+
+	spacer := lipgloss.NewStyle().
+		Height(spacerHeight).
+		Render("")
+
+	screen := lipgloss.JoinVertical(
+		lipgloss.Left,
+		top,
+		spacer,
+		footer,
+	)
+
+	view := tea.NewView(screen)
 	view.AltScreen = true
+
 	return view
 }
 

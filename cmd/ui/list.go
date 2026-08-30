@@ -66,6 +66,7 @@ func New(
 	l.Title = title
 	l.SetShowStatusBar(false)
 	l.SetShowTitle(false)
+	l.SetShowHelp(false)
 
 	return &ListModel{
 		list: l,

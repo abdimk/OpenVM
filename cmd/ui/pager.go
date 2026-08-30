@@ -28,17 +28,25 @@ var (
 )
 
 type Pager struct {
-	title    string
-	content  string
-	ready    bool
-	viewport viewport.Model
+	title      string
+	content    string
+	showFooter bool
+	ready      bool
+	viewport   viewport.Model
 }
 
 func NewPager(title, content string) Pager {
 	return Pager{
-		title:   title,
-		content: content,
+		title:      title,
+		content:    content,
+		showFooter: true,
 	}
+}
+
+// HideFooter disables the pager's own scroll-percentage footer so the view
+// relies on the shared global footer instead.
+func (p *Pager) HideFooter() {
+	p.showFooter = false
 }
 
 func (p Pager) Init() tea.Cmd {
@@ -52,7 +60,11 @@ func (p Pager) Update(msg tea.Msg) (Pager, tea.Cmd) {
 
 	case tea.WindowSizeMsg:
 		headerHeight := lipgloss.Height(p.headerView())
-		footerHeight := lipgloss.Height(p.footerView())
+
+		var footerHeight int
+		if p.showFooter {
+			footerHeight = lipgloss.Height(p.footerView())
+		}
 
 		verticalMarginHeight := headerHeight + footerHeight
 
@@ -84,12 +96,19 @@ func (p Pager) View() string {
 		return "\nInitializing..."
 	}
 
-	return lipgloss.JoinVertical(
+	view := lipgloss.JoinVertical(
 		lipgloss.Left,
 		p.headerView(),
 		p.viewport.View(),
-		p.footerView(),
 	)
+	if p.showFooter {
+		view = lipgloss.JoinVertical(
+			lipgloss.Left,
+			view,
+			p.footerView(),
+		)
+	}
+	return view
 }
 
 func (p *Pager) SetContent(content string) {

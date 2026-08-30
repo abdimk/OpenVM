@@ -14,12 +14,13 @@ type BackMsg struct{}
 
 // checkMark is the green "✓" from the Bubble Tea example.
 var checkMark = lipgloss.NewStyle().Foreground(lipgloss.Color("42")).SetString("✓")
+
 type InstalledModel struct {
 	width  int
 	height int
 
 	packageManager *ui.PackageManagerModel
-	completed []string
+	completed      []string
 }
 
 func NewInstalledModel() InstalledModel {
@@ -78,6 +79,14 @@ func (m InstalledModel) Init() tea.Cmd {
 	return m.packageManager.Init()
 }
 
+func (m *InstalledModel) SetSize(width, height int) {
+	m.width = width
+	m.height = height
+
+	if m.packageManager != nil {
+		m.packageManager.SetSize(width, height)
+	}
+}
 func (m InstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
@@ -95,13 +104,13 @@ func (m InstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, func() tea.Msg { return BackMsg{} }
 		}
 
-		case ui.InstalledPackageMsg:
-			// Record the finished package so we can render it above the active line.
-			if m.packageManager != nil && !m.packageManager.Done() {
-				if pkg := m.packageManager.CurrentPackage(); pkg != "" {
-					m.completed = append(m.completed, pkg)
-				}
+	case ui.InstalledPackageMsg:
+		// Record the finished package so we can render it above the active line.
+		if m.packageManager != nil && !m.packageManager.Done() {
+			if pkg := m.packageManager.CurrentPackage(); pkg != "" {
+				m.completed = append(m.completed, pkg)
 			}
+		}
 	}
 
 	// Forward everything to the reusable component.
@@ -113,22 +122,28 @@ func (m InstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	return m, tea.Batch(cmds...)
 }
+
 func (m InstalledModel) View() tea.View {
 	var b strings.Builder
 
-	// Scroll history: finished packages render top-to-bottom
 	for _, pkg := range m.completed {
 		b.WriteString(checkMark.String() + " " + pkg + "\n")
 	}
 
-	// Active spinner + progress line
 	if m.packageManager != nil {
 		b.WriteString(m.packageManager.View())
 	}
 
-	hint := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#888888")).
-		Render("\n\nPress ESC or Backspace to go back")
+	content := b.String()
 
-	return tea.NewView(b.String() + hint)
+	// Vertically pad the content so it fills the full content area height,
+	// keeping the shared footer pinned to the bottom with no gap above it.
+	if m.height > 0 {
+		pad := m.height - lipgloss.Height(content)
+		if pad > 0 {
+			content += strings.Repeat("\n", pad)
+		}
+	}
+
+	return tea.NewView(content)
 }

@@ -19,15 +19,24 @@ func NewFooter(width int, text string) Footer {
 }
 
 func (f Footer) View() string {
-	line := strings.Repeat("─", f.Width)
+	if f.Width <= 0 {
+		return ""
+	}
 
 	textStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#6B7280")).
 		Padding(0, 2)
 
+	// Keep a blank row below the separator line so the line is never
+	// rendered flush against the very bottom edge of the screen, where
+	// terminals commonly clip the last row.
+	lineStyle := lipgloss.NewStyle().
+		MarginBottom(1).
+		Render(strings.Repeat("─", f.Width))
+
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
-		line,
 		textStyle.Render(f.Text),
+		lineStyle,
 	)
 }
