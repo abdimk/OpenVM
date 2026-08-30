@@ -31,6 +31,7 @@ type model struct {
 	
 	screen Screen
 	installed utils.InstalledModel
+	version utils.VersionModel
 }
 
 func newModel() *model {
@@ -61,6 +62,7 @@ func newModel() *model {
 		),
 		screen: MainMenuScreen,
 		installed: utils.NewInstalledModel(),
+		version: utils.NewVersionModel(),
 	}
 }
 
@@ -151,23 +153,22 @@ func (m *model) updateLayout() {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if _,ok := msg.(utils.BackMsg); ok {
+		m.screen = MainMenuScreen
+		return m,nil
+	}
+	
 	switch m.screen {
-
-	case InstalledScreen:
-		var cmd tea.Cmd
-
-		updatedModel, cmd := m.installed.Update(msg)
-		m.installed = updatedModel.(utils.InstalledModel)
-
-		// Go back to the main menu.
-		if keyMsg, ok := msg.(tea.KeyMsg); ok {
-			if keyMsg.String() == "esc" || keyMsg.String() == "backspace" {
-				m.screen = MainMenuScreen
-			}
-		}
-
-		return m, cmd
-
+		case InstalledScreen:	
+			updatedModel, cmd := m.installed.Update(msg)
+			m.installed = updatedModel.(utils.InstalledModel)
+		
+			return m, cmd
+		case Version:
+			updateModel, cmd := m.version.Update(msg)
+			m.version = updateModel.(utils.VersionModel)
+			return m, cmd
+			
 	case MainMenuScreen:
 		return m.updateMainMenu(msg)
 	}
@@ -205,7 +206,27 @@ func (m model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 				case "Completion":
 				
 				case "Version":
-					// fmt.Println("Selected:", selected.TitleText)
+					m.screen = Version
+
+					var cmds []tea.Cmd
+
+					cmds = append(cmds, m.version.Init())
+
+					if m.width > 0 && m.height > 0 {
+						var cmd tea.Cmd
+
+						updatedModel, cmd := m.version.Update(
+							tea.WindowSizeMsg{
+								Width:  m.width,
+								Height: m.height,
+							},
+						)
+
+						m.version = updatedModel.(utils.VersionModel)
+						cmds = append(cmds, cmd)
+					}
+
+					return m, tea.Batch(cmds...)
 				
 				case "Exit":
 					return m, tea.Quit
@@ -235,6 +256,8 @@ func (m model) View() tea.View {
 	switch m.screen{
 		case InstalledScreen:
 			screenContent = m.installed.View().Content
+		case Version:
+		screenContent = m.version.View().Content
 			
 		case MainMenuScreen:
 			screenContent = lipgloss.JoinVertical(
