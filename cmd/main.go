@@ -21,6 +21,8 @@ const (
 	UpdateCheckScreen
 	RepairScreen
 	DockerScreen
+	DoctorScreen
+	CurrentVersionScreen
 	Version
 )
 
@@ -38,7 +40,9 @@ type model struct {
 	install   utils.InstallModel
 	update    utils.UpdateCheckModel
 	repair    utils.RepairModel
-	docker    utils.DoctorModel
+	docker    utils.DockerModel
+	doctor    utils.DoctorModel
+	current   utils.CurrentVersionModel
 }
 
 func newModel() *model {
@@ -74,6 +78,8 @@ func newModel() *model {
 		update:    utils.NewUpdateCheckModel(),
 		repair:    utils.NewRepairModel(),
 		docker:    utils.NewDockerModel(),
+		doctor:    utils.NewDoctorModel(),
+		current:   utils.NewCurrentVersionModel(),
 	}
 }
 
@@ -193,6 +199,12 @@ func (m *model) updateLayout() {
 	case DockerScreen:
 		m.docker.SetSize(m.width, contentHeight)
 
+	case DoctorScreen:
+		m.doctor.SetSize(m.width, contentHeight)
+
+	case CurrentVersionScreen:
+		m.current.SetSize(m.width, contentHeight)
+
 	case Version:
 		m.version.SetSize(m.width, contentHeight)
 	}
@@ -229,7 +241,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case DockerScreen:
 		um, cmd := m.docker.Update(msg)
-		m.docker = um.(utils.DoctorModel)
+		m.docker = um.(utils.DockerModel)
+		return m, m.handleResize(msg, cmd)
+
+	case DoctorScreen:
+		um, cmd := m.doctor.Update(msg)
+		m.doctor = um.(utils.DoctorModel)
+		return m, m.handleResize(msg, cmd)
+
+	case CurrentVersionScreen:
+		um, cmd := m.current.Update(msg)
+		m.current = um.(utils.CurrentVersionModel)
 		return m, m.handleResize(msg, cmd)
 
 	case Version:
@@ -298,11 +320,16 @@ func (m model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.repair.Init()
 
 			case "Doctor":
-				m.screen = DockerScreen
+				m.screen = DoctorScreen
 				m.updateLayout()
-				return m, m.docker.Init()
+				return m, m.doctor.Init()
 
 			case "Completion":
+
+			case "Current Version":
+				m.screen = CurrentVersionScreen
+				m.updateLayout()
+				return m, m.current.Init()
 
 			case "Version":
 				m.screen = Version
@@ -350,6 +377,12 @@ func (m model) footerText() string {
 	case DockerScreen:
 		return "esc • back"
 
+	case DoctorScreen:
+		return "esc • back"
+
+	case CurrentVersionScreen:
+		return "esc • back"
+
 	case InstalledScreen:
 		return "↑/k up • ↓/j down • esc back"
 
@@ -383,6 +416,12 @@ func (m model) View() tea.View {
 
 	case DockerScreen:
 		screenContent = m.docker.View().Content
+
+	case DoctorScreen:
+		screenContent = m.doctor.View().Content
+
+	case CurrentVersionScreen:
+		screenContent = m.current.View().Content
 
 	case Version:
 		screenContent = m.version.View().Content

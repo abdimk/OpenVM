@@ -6,11 +6,11 @@ type DoctorModel struct {
 	info InfoModel
 }
 
-func NewDockerModel() DoctorModel {
+func NewDoctorModel() DoctorModel {
 	return DoctorModel{
 		info: NewInfoModel(
 			"Doctor",
-			"Manage Docker containers and images.",
+			"Check your environment and diagnose configuration issues.",
 		),
 	}
 }
@@ -29,6 +29,6 @@ func (d *DoctorModel) SetSize(width, height int) {
 	d.info.SetSize(width, height)
 }
 
-func (m DoctorModel) View() tea.View {
-	return m.info.View()
+func (d DoctorModel) View() tea.View {
+	return d.info.View()
 }
