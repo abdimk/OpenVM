@@ -1,51 +1,78 @@
 package utils
 
 import (
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/abdimk/openvm/cmd/ui"
+
+	ui "github.com/abdimk/openvm/cmd/ui"
 )
 
 type BackMsg struct{}
 
+// checkMark is the green "✓" from the Bubble Tea example.
+var checkMark = lipgloss.NewStyle().Foreground(lipgloss.Color("42")).SetString("✓")
 type InstalledModel struct {
-	width int
+	width  int
 	height int
+
 	packageManager *ui.PackageManagerModel
-	
+	completed []string
 }
 
-
-func NewInstalledModel() *InstalledModel{
+func NewInstalledModel() InstalledModel {
 	packages := []string{
-		"go",
-		"node",
-		"python",
-		"rust",
+		"spicerack-4.7.8",
+		"schnurrkit-4.3.6",
+		"libtacos-1.2.7",
+		"babys-monads-8.8.2",
+		"hojicha-2.8.0",
+		"bad-kitty-4.7.8",
+		"molasses-utils-2.9.3",
+		"eggy-7.8.1",
+		"jalapeño-6.1.9",
+		"libyuzu-8.6.7",
+		"cashew-apple-2.0.0",
+		"currykit-9.8.4",
+		"xmodmeow-4.3.8",
+		"currywurst-devel-4.1.2",
+		"snow-peas-0.8.3",
+		"coffee-CUPS-3.1.6",
+		"fullenglish-2.6.0",
+		"libgardening-2.2.8",
+		"libesszet-0.3.0",
+		"rock-lobster-9.5.6",
+		"licorice-utils-4.1.2",
+		"old-socks-devel-1.9.8",
+		"libpurring-7.4.7",
+		"zeichenorientierte-benutzerschnittstellen-2.5.5",
+		"standmixer-3.6.0",
+		"chai-1.2.0",
+		"vegeutils-7.1.0",
+		"xkohlrabi-9.7.5",
 	}
+
 	m := InstalledModel{
-			packageManager: ui.NewPackageManager(
-				packages,
-				// Dummy install: just waits 1 second then reports "done"
-				func(pkg string) tea.Cmd {
-					return tea.Tick(time.Second, func(time.Time) tea.Msg {
-						return ui.InstalledPackageMsg{
-							Package: pkg,
-						}
-					})
-				},
-			),
-		}
-	
-		m.packageManager.SetSize(80, 20)
-		
-		return &m
+		packageManager: ui.NewPackageManager(
+			packages,
+			// dummy installer — just fires the completion msg after 1s
+			func(pkg string) tea.Cmd {
+				return tea.Tick(time.Second, func(time.Time) tea.Msg {
+					return ui.InstalledPackageMsg{Package: pkg}
+				})
+			},
+		),
+	}
+
+	// sensible default until the first WindowSizeMsg arrives
+	m.packageManager.SetSize(80, 20)
+	return m
 }
 
 func (m InstalledModel) Init() tea.Cmd {
-	if m.packageManager == nil{
+	if m.packageManager == nil {
 		return nil
 	}
 	return m.packageManager.Init()
@@ -65,35 +92,43 @@ func (m InstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "esc", "backspace":
-			return m, func() tea.Msg {
-				return BackMsg{}
-			}
+			return m, func() tea.Msg { return BackMsg{} }
 		}
+
+		case ui.InstalledPackageMsg:
+			// Record the finished package so we can render it above the active line.
+			if m.packageManager != nil && !m.packageManager.Done() {
+				if pkg := m.packageManager.CurrentPackage(); pkg != "" {
+					m.completed = append(m.completed, pkg)
+				}
+			}
 	}
 
+	// Forward everything to the reusable component.
 	if m.packageManager != nil {
-		cmd := m.packageManager.Update(msg)
-		if cmd != nil {
+		if cmd := m.packageManager.Update(msg); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
 	}
 
 	return m, tea.Batch(cmds...)
 }
-
 func (m InstalledModel) View() tea.View {
-	var content string
+	var b strings.Builder
 
+	// Scroll history: finished packages render top-to-bottom
+	for _, pkg := range m.completed {
+		b.WriteString(checkMark.String() + " " + pkg + "\n")
+	}
+
+	// Active spinner + progress line
 	if m.packageManager != nil {
-		content = m.packageManager.View()
-	} else {
-		content = "Installed Section"
+		b.WriteString(m.packageManager.View())
 	}
 
 	hint := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#888888")).
 		Render("\n\nPress ESC or Backspace to go back")
 
-	v := tea.NewView(content + hint)
-	return v
+	return tea.NewView(b.String() + hint)
 }

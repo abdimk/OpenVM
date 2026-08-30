@@ -17,6 +17,7 @@ type Screen int
 const (
 	MainMenuScreen Screen = iota
 	InstalledScreen
+	Version
 )
 
 
@@ -59,7 +60,7 @@ func newModel() *model {
 			installPackage,
 		),
 		screen: MainMenuScreen,
-		installed: *utils.NewInstalledModel(),
+		installed: utils.NewInstalledModel(),
 	}
 }
 
@@ -176,6 +177,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd1 tea.Cmd
+	var installedCmd tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -191,6 +193,7 @@ func (m model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 				case "Install":
 				
 				case "Installed":
+					m.installed = utils.NewInstalledModel()
 					m.screen = InstalledScreen
 					return m, m.installed.Init()
 				case "Check For Update":
@@ -213,13 +216,17 @@ func (m model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.updateLayout()
+		
+		updatedInstalled, ic := m.installed.Update(msg)
+		m.installed = updatedInstalled.(utils.InstalledModel)
+		installedCmd = ic
 	}
 
 	m.loadingSpinner, cmd1 = m.loadingSpinner.Update(msg)
 	cmd2 := m.list.Update(msg)
 	cmd4 := m.packageManager.Update(msg)
 
-	return m, tea.Batch(cmd1, cmd2, cmd4)
+	return m, tea.Batch(cmd1, cmd2, cmd4,installedCmd)
 }
 
 func (m model) View() tea.View {
