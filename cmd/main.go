@@ -16,7 +16,11 @@ type Screen int
 
 const (
 	MainMenuScreen Screen = iota
+	InstallScreen
 	InstalledScreen
+	UpdateCheckScreen
+	RepairScreen
+	DockerScreen
 	Version
 )
 
@@ -31,6 +35,10 @@ type model struct {
 	screen    Screen
 	installed utils.InstalledModel
 	version   utils.VersionModel
+	install   utils.InstallModel
+	update    utils.UpdateCheckModel
+	repair    utils.RepairModel
+	docker    utils.DoctorModel
 }
 
 func newModel() *model {
@@ -40,7 +48,7 @@ func newModel() *model {
 		{TitleText: "Check For Update", DescriptionText: "Check for and update installed tools"},
 		{TitleText: "Repair", DescriptionText: "Detect and repair broken tool installations"},
 		{TitleText: "Doctor", DescriptionText: "Check your environment and diagnose configuration issues"},
-		{TitleText: "Completion", DescriptionText: "Generate shell completion scripts"},
+		{TitleText: "Current Version", DescriptionText: "Current Version of Software you have"},
 		{TitleText: "Version", DescriptionText: "Show OpenVM version information"},
 		{TitleText: "Exit", DescriptionText: "Exit OpenVM"},
 	}
@@ -62,6 +70,10 @@ func newModel() *model {
 		screen:    MainMenuScreen,
 		installed: utils.NewInstalledModel(),
 		version:   utils.NewVersionModel(),
+		install:   utils.NewInstallModel(),
+		update:    utils.NewUpdateCheckModel(),
+		repair:    utils.NewRepairModel(),
+		docker:    utils.NewDockerModel(),
 	}
 }
 
@@ -169,6 +181,18 @@ func (m *model) updateLayout() {
 	case InstalledScreen:
 		m.installed.SetSize(m.width, contentHeight)
 
+	case InstallScreen:
+		m.install.SetSize(m.width, contentHeight)
+
+	case UpdateCheckScreen:
+		m.update.SetSize(m.width, contentHeight)
+
+	case RepairScreen:
+		m.repair.SetSize(m.width, contentHeight)
+
+	case DockerScreen:
+		m.docker.SetSize(m.width, contentHeight)
+
 	case Version:
 		m.version.SetSize(m.width, contentHeight)
 	}
@@ -187,6 +211,27 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.installed = updatedModel.(utils.InstalledModel)
 
 		return m, cmd
+
+	case InstallScreen:
+		um, cmd := m.install.Update(msg)
+		m.install = um.(utils.InstallModel)
+		return m, m.handleResize(msg, cmd)
+
+	case UpdateCheckScreen:
+		um, cmd := m.update.Update(msg)
+		m.update = um.(utils.UpdateCheckModel)
+		return m, m.handleResize(msg, cmd)
+
+	case RepairScreen:
+		um, cmd := m.repair.Update(msg)
+		m.repair = um.(utils.RepairModel)
+		return m, m.handleResize(msg, cmd)
+
+	case DockerScreen:
+		um, cmd := m.docker.Update(msg)
+		m.docker = um.(utils.DoctorModel)
+		return m, m.handleResize(msg, cmd)
+
 	case Version:
 		if ws, ok := msg.(tea.WindowSizeMsg); ok {
 			m.width = ws.Width
@@ -206,6 +251,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m *model) handleResize(msg tea.Msg, cmd tea.Cmd) tea.Cmd {
+	if ws, ok := msg.(tea.WindowSizeMsg); ok {
+		m.width = ws.Width
+		m.height = ws.Height
+		m.updateLayout()
+		return nil
+	}
+	return cmd
+}
+
 func (m model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd1 tea.Cmd
 	var installedCmd tea.Cmd
@@ -222,6 +277,9 @@ func (m model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			switch selected.TitleText {
 			case "Install":
+				m.screen = InstallScreen
+				m.updateLayout()
+				return m, m.install.Init()
 
 			case "Installed":
 				m.installed = utils.NewInstalledModel()
@@ -230,10 +288,19 @@ func (m model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				return m, m.installed.Init()
 			case "Check For Update":
+				m.screen = UpdateCheckScreen
+				m.updateLayout()
+				return m, m.update.Init()
 
 			case "Repair":
+				m.screen = RepairScreen
+				m.updateLayout()
+				return m, m.repair.Init()
 
 			case "Doctor":
+				m.screen = DockerScreen
+				m.updateLayout()
+				return m, m.docker.Init()
 
 			case "Completion":
 
@@ -271,6 +338,18 @@ func (m model) footerText() string {
 	case MainMenuScreen:
 		return "↑/k up • ↓/j down • enter select • q quit"
 
+	case InstallScreen:
+		return "esc • back"
+
+	case UpdateCheckScreen:
+		return "esc • back"
+
+	case RepairScreen:
+		return "esc • back"
+
+	case DockerScreen:
+		return "esc • back"
+
 	case InstalledScreen:
 		return "↑/k up • ↓/j down • esc back"
 
@@ -292,6 +371,18 @@ func (m model) View() tea.View {
 
 	case InstalledScreen:
 		screenContent = m.installed.View().Content
+
+	case InstallScreen:
+		screenContent = m.install.View().Content
+
+	case UpdateCheckScreen:
+		screenContent = m.update.View().Content
+
+	case RepairScreen:
+		screenContent = m.repair.View().Content
+
+	case DockerScreen:
+		screenContent = m.docker.View().Content
 
 	case Version:
 		screenContent = m.version.View().Content

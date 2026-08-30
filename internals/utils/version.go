@@ -76,9 +76,6 @@ func (v VersionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return v, cmd
 }
 
-// SetSize resizes the version view to the given content area so the
-// shared footer (help text + separator) rendered by the parent layout
-// stays visible at the bottom of the screen.
 func (v *VersionModel) SetSize(width, height int) {
 	v.width = width
 	v.height = height
