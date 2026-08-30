@@ -20,7 +20,6 @@ const (
 	InstalledScreen
 	UpdateCheckScreen
 	RepairScreen
-	DockerScreen
 	DoctorScreen
 	CurrentVersionScreen
 	Version
@@ -40,7 +39,6 @@ type model struct {
 	install   utils.InstallModel
 	update    utils.UpdateCheckModel
 	repair    utils.RepairModel
-	docker    utils.DockerModel
 	doctor    utils.DoctorModel
 	current   utils.CurrentVersionModel
 }
@@ -77,7 +75,6 @@ func newModel() *model {
 		install:   utils.NewInstallModel(),
 		update:    utils.NewUpdateCheckModel(),
 		repair:    utils.NewRepairModel(),
-		docker:    utils.NewDockerModel(),
 		doctor:    utils.NewDoctorModel(),
 		current:   utils.NewCurrentVersionModel(),
 	}
@@ -196,9 +193,6 @@ func (m *model) updateLayout() {
 	case RepairScreen:
 		m.repair.SetSize(m.width, contentHeight)
 
-	case DockerScreen:
-		m.docker.SetSize(m.width, contentHeight)
-
 	case DoctorScreen:
 		m.doctor.SetSize(m.width, contentHeight)
 
@@ -237,11 +231,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case RepairScreen:
 		um, cmd := m.repair.Update(msg)
 		m.repair = um.(utils.RepairModel)
-		return m, m.handleResize(msg, cmd)
-
-	case DockerScreen:
-		um, cmd := m.docker.Update(msg)
-		m.docker = um.(utils.DockerModel)
 		return m, m.handleResize(msg, cmd)
 
 	case DoctorScreen:
@@ -374,9 +363,6 @@ func (m model) footerText() string {
 	case RepairScreen:
 		return "esc • back"
 
-	case DockerScreen:
-		return "esc • back"
-
 	case DoctorScreen:
 		return "esc • back"
 
@@ -413,9 +399,6 @@ func (m model) View() tea.View {
 
 	case RepairScreen:
 		screenContent = m.repair.View().Content
-
-	case DockerScreen:
-		screenContent = m.docker.View().Content
 
 	case DoctorScreen:
 		screenContent = m.doctor.View().Content
