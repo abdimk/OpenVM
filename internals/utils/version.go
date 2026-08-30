@@ -18,7 +18,7 @@ type VersionModel struct{
 
 func NewVersionModel() VersionModel{
 	pager := ui.NewPager(
-		"Installed",
+		"OpenVM Version",
 		"Your installed tools cotent here",
 	)
 	return VersionModel{

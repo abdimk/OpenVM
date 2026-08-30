@@ -250,6 +250,7 @@ func (m model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmd1, cmd2, cmd4,installedCmd)
 }
 
+
 func (m model) View() tea.View {
 	var screenContent string
 	
