@@ -1,28 +1,56 @@
 package utils
 
 import (
+	"strings"
+
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+
 	"github.com/abdimk/openvm/cmd/ui"
 )
 
+/*
+ * OpenVM: 0.0.1
+ * Machine:
+ * OpenVM Path: dummy path
+ * Installed Packages:
+ * Available Storage: 150GB
+ * Developer: github.com/abdimk
+ */
 const version = "0.0.1"
+
+func NewVersionModel() VersionModel {
+	developerURL := "https://github.com/abdimk"
+
+	developer := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#58A6FF")).
+		Hyperlink(developerURL).
+		Render(developerURL)
+
+	content := strings.Join([]string{
+		" [OpenVM]: " + version,
+		" [Machine]: " + GetMachineType(),
+		" [OpenVM Path]: dummy path",
+		" [Installed Packages]:",
+		" [Available Storage]: 150GB",
+		" [Developer]: " + developer,
+	}, "\n\n")
+
+	pager := ui.NewPager(
+		"OpenVM Version",
+		content,
+	)
+	pager.HideFooter()
+	return VersionModel{
+		pager: pager,
+	}
+}
 
 type VersionModel struct {
 	width  int
 	height int
 
 	pager ui.Pager
-}
-
-func NewVersionModel() VersionModel {
-	pager := ui.NewPager(
-		"OpenVM Version",
-		"Your installed tools context here",
-	)
-	pager.HideFooter()
-	return VersionModel{
-		pager: pager,
-	}
 }
 
 func (v VersionModel) Init() tea.Cmd {
