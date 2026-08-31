@@ -1,13 +1,7 @@
 <div align="center">
+  <img src="public\openvm.png" alt="OpenVM logo">
   <h1>OpenVM</h1>
   <p><strong>a universal version manager for developers</strong></p>
-  <!--___                __     ____  __ 
- / _ \ _ __   ___ _ _\ \   / /  \/  |
-| | | | '_ \ / _ \ '_ \ \ / /| |\/| |
-| |_| | |_) |  __/ | | \ V / | |  | |
- \___/| .__/ \___|_| |_|\_/  |_|  |_|
-      |_|                            -->
-  <!--<p><em>This is for experimental purpose</em></p>-->
 </div>
 
 ---
