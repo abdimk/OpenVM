@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="public\openvm.png" alt="OpenVM logo">
+  <img src="public\openvm.png" alt="OpenVM logo" width=600 height=600>
   <h1>OpenVM</h1>
   <p><strong>a universal version manager for developers</strong></p>
 </div>
