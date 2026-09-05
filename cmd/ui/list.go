@@ -38,10 +38,9 @@ func New(
 		listItems[i] = item
 	}
 
-	// Create the default delegate and override the pink selected styles
 	delegate := list.NewDefaultDelegate()
 
-	// Change selected item color from pink to your custom color
+
 	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.
 		Foreground(lipgloss.Color("#743054")).
 		BorderLeftForeground(lipgloss.Color("#743054"))
@@ -50,7 +49,7 @@ func New(
 		Foreground(lipgloss.Color("#743054")).
 		BorderLeftForeground(lipgloss.Color("#743054"))
 
-	// Optional: also customize unselected items
+
 	delegate.Styles.NormalTitle = delegate.Styles.NormalTitle.
 		Foreground(lipgloss.Color("#FFFDF5"))
 	delegate.Styles.NormalDesc = delegate.Styles.NormalDesc.
@@ -58,7 +57,7 @@ func New(
 
 	l := list.New(
 		listItems,
-		delegate, // pass your customized delegate
+		delegate, 
 		width,
 		height,
 	)

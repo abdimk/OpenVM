@@ -182,7 +182,7 @@ func (m PackageManagerModel) View() string {
 		MaxWidth(cellsAvailable).
 		Render("Installing " + packageName)
 
-	// Fill the remaining space between info and progress.
+
 	cellsRemaining := max(
 		0,
 		m.width-lipgloss.Width(
@@ -195,18 +195,18 @@ func (m PackageManagerModel) View() string {
 	return spin + info + gap + prog + packageCount
 }
 
-// SetSize updates the available component size.
+
 func (m *PackageManagerModel) SetSize(width, height int) {
 	m.width = width
 	m.height = height
 }
 
-// Done returns true when every package has been installed.
+
 func (m *PackageManagerModel) Done() bool {
 	return m.done
 }
 
-// CurrentPackage returns the package currently being installed.
+
 func (m *PackageManagerModel) CurrentPackage() string {
 	if len(m.packages) == 0 || m.done {
 		return ""
@@ -215,7 +215,7 @@ func (m *PackageManagerModel) CurrentPackage() string {
 	return m.packages[m.index]
 }
 
-// TotalPackages returns the total number of packages.
+
 func (m *PackageManagerModel) TotalPackages() int {
 	return len(m.packages)
 }

@@ -12,7 +12,7 @@ import (
 
 type BackMsg struct{}
 
-// checkMark is the green "✓" from the Bubble Tea example.
+
 var checkMark = lipgloss.NewStyle().Foreground(lipgloss.Color("42")).SetString("✓")
 
 type InstalledModel struct {
@@ -58,7 +58,7 @@ func NewInstalledModel() InstalledModel {
 	m := InstalledModel{
 		packageManager: ui.NewPackageManager(
 			packages,
-			// dummy installer — just fires the completion msg after 1s
+		
 			func(pkg string) tea.Cmd {
 				return tea.Tick(time.Second, func(time.Time) tea.Msg {
 					return ui.InstalledPackageMsg{Package: pkg}
@@ -67,7 +67,7 @@ func NewInstalledModel() InstalledModel {
 		),
 	}
 
-	// sensible default until the first WindowSizeMsg arrives
+
 	m.packageManager.SetSize(80, 20)
 	return m
 }
@@ -105,7 +105,7 @@ func (m InstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case ui.InstalledPackageMsg:
-		// Record the finished package so we can render it above the active line.
+	
 		if m.packageManager != nil && !m.packageManager.Done() {
 			if pkg := m.packageManager.CurrentPackage(); pkg != "" {
 				m.completed = append(m.completed, pkg)
@@ -113,7 +113,7 @@ func (m InstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Forward everything to the reusable component.
+
 	if m.packageManager != nil {
 		if cmd := m.packageManager.Update(msg); cmd != nil {
 			cmds = append(cmds, cmd)
@@ -136,8 +136,7 @@ func (m InstalledModel) View() tea.View {
 
 	content := b.String()
 
-	// Vertically pad the content so it fills the full content area height,
-	// keeping the shared footer pinned to the bottom with no gap above it.
+
 	if m.height > 0 {
 		pad := m.height - lipgloss.Height(content)
 		if pad > 0 {
