@@ -1,21 +1,28 @@
 package utils
 
-import tea "charm.land/bubbletea/v2"
+import (
+	"fmt"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/abdimk/openvm/internals/system"
+)
 
 type InstallModel struct {
 	info InfoModel
 }
 
 func NewInstallModel() InstallModel {
+	result := system.GetLanguages()
 	return InstallModel{
 		info: NewInfoModel(
 			"Install",
-			"Choose a programming language or development tool to install.",
+			fmt.Sprintf("Choose a programming language or development tool to install.\n %s", result),
 		),
 	}
 }
 
 func (m InstallModel) Init() tea.Cmd {
+	
 	return m.info.Init()
 }
 

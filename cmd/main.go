@@ -9,6 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	ui "github.com/abdimk/openvm/cmd/ui"
+	"github.com/abdimk/openvm/internals/system"
 	"github.com/abdimk/openvm/internals/utils"
 )
 
@@ -476,8 +477,11 @@ func installPackage(pkg string) tea.Cmd {
 }
 
 func main() {
-	p := tea.NewProgram(newModel())
-	if _, err := p.Run(); err != nil {
-		fmt.Println(err)
-	}
+	// p := tea.NewProgram(newModel())
+	// if _, err := p.Run(); err != nil {
+	// 	fmt.Println(err)
+	// }
+	
+	
+	fmt.Println(system.GetLanguages())
 }
