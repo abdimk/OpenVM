@@ -9,7 +9,6 @@ import (
 	"charm.land/lipgloss/v2"
 
 	ui "github.com/abdimk/openvm/cmd/ui"
-	"github.com/abdimk/openvm/internals/system"
 	"github.com/abdimk/openvm/internals/utils"
 )
 
@@ -483,5 +482,5 @@ func main() {
 	// }
 	
 	
-	fmt.Println(system.GetLanguages())
+	fmt.Println(utils.GetLanguages())
 }
