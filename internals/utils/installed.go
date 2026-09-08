@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -29,8 +30,7 @@ func NewInstalledModel() InstalledModel {
 		})
 	}
 
-	l := ui.New("Installed Languages", items, 80, 20)
-	l.SetShowTitle(true)
+	l := ui.New("",items, 80, 20)
 	
 	
 	
@@ -79,19 +79,64 @@ func (m InstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m InstalledModel) buildListTitle() string {
+	if m.width <= 0 {
+		return "Languages and Tools"
+	}
+
+	leftBlock := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#ffffff")).
+		PaddingLeft(2).
+		PaddingBottom(0).
+		Render("Available Languages")
+
+	rightBlock := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#ffffff")).
+		PaddingRight(2).
+		PaddingLeft(1).
+		Render(fmt.Sprintf("Machine: [%s]", GetMachineType()))
+
+	leftW := lipgloss.Width(leftBlock)
+	rightW := lipgloss.Width(rightBlock)
+
+	gap := m.width - leftW - rightW
+	if gap < 0 {
+		gap = 0
+	}
+
+	return lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		leftBlock,
+		strings.Repeat(" ", gap),
+		rightBlock,
+	)
+}
+
 func (m InstalledModel) View() tea.View {
 	var content string
+
+	title := m.buildListTitle()
+	titleHeight := lipgloss.Height(title)
 
 	if m.languages != nil {
 		content = m.languages.View()
 	}
 
-	if m.height > 0 {
-		pad := m.height - lipgloss.Height(content)
-		if pad > 0 {
-			content += strings.Repeat("\n", pad)
-		}
+	contentHeight := m.height - titleHeight
+	if contentHeight < 1 {
+		contentHeight = 1
 	}
 
-	return tea.NewView(content)
+	listStyled := lipgloss.NewStyle().
+		Height(contentHeight).
+		Render(content)
+
+	screen := lipgloss.JoinVertical(
+		lipgloss.Left,
+		title,
+		listStyled,
+	)
+
+	return tea.NewView(screen)
 }

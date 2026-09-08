@@ -6,77 +6,94 @@ import (
 	"strings"
 )
 
-const ( 
-	Go = "Go"
+const (
+	Go     = "Go"
 	Python = "Python"
-	Node = "Node"
-	Rust = "Rust"
-	Gpp = "C++"
-	Gcc = "C"
+	Node   = "Node"
+	Rust   = "Rust"
+	Gpp    = "C++"
+	Gcc    = "C"
+)
+
+const (
+	Docker     = "Docker"
+	Kubernetes = "Kubernetes"
 )
 
 var languageBinaries = map[string][]string{
-	Go: {"go"},
+	Go:     {"go"},
 	Python: {"python3", "python"},
-	Node: {"node"},
-	Rust: {"rustc"},
-	Gpp: {"g++"},
-	Gcc: {"gcc"},
+	Node:   {"node"},
+	Rust:   {"rustc"},
+	Gpp:    {"g++"},
+	Gcc:    {"gcc"},
 }
 
+var toolBinaries = map[string][]string{
+	Docker:     {"docker"},
+	Kubernetes: {"kubectl"},
+}
 
-type Language struct{
-	Name string
-	Path string
+type Language struct {
+	Name    string
+	Path    string
 	Version string
-	
 }
 
 
-
-
-func GetLanguages()[]Language{
-	if GetMachineType() != "Linux"{
+func findBinaries(names []string, binaries map[string][]string) []Language {
+	if GetMachineType() != "Linux" {
 		return []Language{}
 	}
-	
-	if os.Getenv("PATH") == ""{
+
+	if os.Getenv("PATH") == "" {
 		return []Language{}
 	}
-	
+
 	var found []Language
-	
 	alreadyFound := make(map[string]bool)
-	
 
-		for _, langName := range []string{Go, Python, Node, Rust, Gpp, Gcc} {
-			binaries := languageBinaries[langName]
-
-			for _, binary := range binaries {
-
-				if alreadyFound[langName] {
-					break
-				}
-
-
-				path, err := exec.LookPath(binary)
-				if err != nil {
-					continue
-				}
-
-				version := getVersion(binary)
-
-				found = append(found, Language{
-					Name:    langName,
-					Path:    path,
-					Version: version,
-				})
-				alreadyFound[langName] = true
+	for _, name := range names {
+		for _, binary := range binaries[name] {
+			if alreadyFound[name] {
 				break
 			}
-		}
 
-		return found
+			path, err := exec.LookPath(binary)
+			if err != nil {
+				continue
+			}
+
+			found = append(found, Language{
+				Name:    name,
+				Path:    path,
+				Version: getVersion(binary),
+			})
+			alreadyFound[name] = true
+			break
+		}
+	}
+
+	return found
+}
+
+func GetLanguages() []Language {
+	return findBinaries(
+		[]string{Go, Python, Node, Rust, Gpp, Gcc},
+		languageBinaries,
+	)
+}
+
+func GetTools() []Language {
+	return findBinaries(
+		[]string{Docker, Kubernetes},
+		toolBinaries,
+	)
+}
+
+
+func GetAvailable() []Language {
+	return append(GetLanguages(), GetTools()...)
 }
 
 func getVersion(binary string) string {
@@ -100,7 +117,7 @@ func getVersion(binary string) string {
 		return "unknown"
 	}
 
-	// Take only the first line
+
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	if len(lines) > 0 {
 		return strings.TrimSpace(lines[0])
