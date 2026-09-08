@@ -1,7 +1,4 @@
 <div align="center">
-
-  <img src="public\openvm.png" alt="OpenVM logo" width=200 height=200>
-
   <img src="public\openvm.png" alt="OpenVM logo" width=600 height=600>
 
   <h1>OpenVM</h1>
