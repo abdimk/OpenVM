@@ -99,6 +99,14 @@ func (m *ListModel) SetItems(items []Item) tea.Cmd {
 	}
 	return m.list.SetItems(listItems)
 }
+func (m *ListModel) SetShowTitle(show bool) {
+	m.list.SetShowTitle(show)
+}
+
+func(m *ListModel) SetTitleStyle(style lipgloss.Style){
+	m.list.Styles.Title = style
+	m.list.Styles.TitleBar = style.UnsetBorderStyle()
+}
 
 func (m *ListModel) InsertItem(index int, item Item) tea.Cmd {
 	return m.list.InsertItem(index, item)

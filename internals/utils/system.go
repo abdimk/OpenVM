@@ -11,6 +11,8 @@ const (
 	Python = "Python"
 	Node = "Node"
 	Rust = "Rust"
+	Gpp = "C++"
+	Gcc = "C"
 )
 
 var languageBinaries = map[string][]string{
@@ -18,6 +20,8 @@ var languageBinaries = map[string][]string{
 	Python: {"python3", "python"},
 	Node: {"node"},
 	Rust: {"rustc"},
+	Gpp: {"g++"},
+	Gcc: {"gcc"},
 }
 
 
@@ -45,7 +49,7 @@ func GetLanguages()[]Language{
 	alreadyFound := make(map[string]bool)
 	
 
-		for _, langName := range []string{Go, Python, Node, Rust} {
+		for _, langName := range []string{Go, Python, Node, Rust, Gpp, Gcc} {
 			binaries := languageBinaries[langName]
 
 			for _, binary := range binaries {
@@ -75,28 +79,32 @@ func GetLanguages()[]Language{
 		return found
 }
 
-
 func getVersion(binary string) string {
-		var args []string
+	var args []string
 
-		switch binary {
-		case "go", "rustc":
-			args = []string{"version"}
-		case "python3", "python":
-			args = []string{"--version"}
-		case "node":
-			args = []string{"--version"}
-		default:
-			args = []string{"--version"}
-		}
+	switch binary {
+	case "go", "rustc":
+		args = []string{"version"}
+	case "python3", "python":
+		args = []string{"--version"}
+	case "node":
+		args = []string{"--version"}
+	case "g++", "gcc":
+		args = []string{"--version"}
+	default:
+		args = []string{"--version"}
+	}
 
-		
-		out, err := exec.Command(binary, args...).CombinedOutput()
-		if err != nil {
-			return "unknown"
-		}
+	out, err := exec.Command(binary, args...).CombinedOutput()
+	if err != nil {
+		return "unknown"
+	}
 
-		return strings.TrimSpace(string(out))
+	// Take only the first line
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	if len(lines) > 0 {
+		return strings.TrimSpace(lines[0])
+	}
+
+	return "unknown"
 }
-
-
