@@ -9,6 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	ui "github.com/abdimk/openvm/cmd/ui"
+	"github.com/abdimk/openvm/internals/process"
 	"github.com/abdimk/openvm/internals/utils"
 )
 
@@ -23,6 +24,7 @@ const (
 	DoctorScreen
 	CurrentVersionScreen
 	Version
+	SelectedInstalledScreen
 )
 
 type model struct {
@@ -33,14 +35,15 @@ type model struct {
 	table          *ui.TableModel
 	packageManager *ui.PackageManagerModel
 
-	screen    Screen
-	installed utils.InstalledModel
-	version   utils.VersionModel
-	install   utils.InstallModel
-	update    utils.UpdateCheckModel
-	repair    utils.RepairModel
-	doctor    utils.DoctorModel
-	current   utils.CurrentVersionModel
+	screen            Screen
+	installed         utils.InstalledModel
+	version           utils.VersionModel
+	install           utils.InstallModel
+	update            utils.UpdateCheckModel
+	repair            utils.RepairModel
+	doctor            utils.DoctorModel
+	current           utils.CurrentVersionModel
+	selectedInstalled process.SelectedInstalledModel
 }
 
 func newModel() *model {
@@ -100,6 +103,13 @@ func (m model) header() string {
 }
 
 func (m model) description() string {
+	var DefaultDescription string
+
+	if len(DefaultDescription) == 0 {
+		DefaultDescription = "OpenVM is a Terminal User Interface (TUI) for managing development tools and programming languages.\n" +
+			"It simplifies installing, updating, switching between versions, and repairing tools from one unified terminal interface."
+
+	}
 	style := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#888888")).
 		Width(m.width).
@@ -107,8 +117,7 @@ func (m model) description() string {
 		MarginBottom(1)
 
 	return style.Render(
-		"OpenVM is a Terminal User Interface (TUI) for managing development tools and programming languages.\n" +
-			"It simplifies installing, updating, switching between versions, and repairing tools from one unified terminal interface.",
+		DefaultDescription,
 	)
 }
 func (m model) buildListTitle() string {
@@ -201,12 +210,32 @@ func (m *model) updateLayout() {
 
 	case Version:
 		m.version.SetSize(m.width, contentHeight)
+
+	case SelectedInstalledScreen:
+		m.selectedInstalled.SetSize(m.width, contentHeight)
 	}
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if ws, ok := msg.(tea.WindowSizeMsg); ok {
+		m.width = ws.Width
+		m.height = ws.Height
+		m.updateLayout()
+		return m, nil
+	}
 	if _, ok := msg.(utils.BackMsg); ok {
-		m.screen = MainMenuScreen
+		if m.screen == SelectedInstalledScreen {
+			m.screen = InstalledScreen
+		} else {
+			m.screen = MainMenuScreen
+		}
+		m.updateLayout()
+		return m, nil
+	}
+
+	if lsm, ok := msg.(utils.LanguageSelectedMsg); ok {
+		m.selectedInstalled = process.NewSelectedInstalledModel(lsm.Language)
+		m.screen = SelectedInstalledScreen
 		m.updateLayout()
 		return m, nil
 	}
@@ -216,6 +245,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		updatedModel, cmd := m.installed.Update(msg)
 		m.installed = updatedModel.(utils.InstalledModel)
 
+		return m, cmd
+
+	case SelectedInstalledScreen:
+		updatedModel, cmd := m.selectedInstalled.Update(msg)
+		m.selectedInstalled = updatedModel.(process.SelectedInstalledModel)
 		return m, cmd
 
 	case InstallScreen:
@@ -370,9 +404,12 @@ func (m model) footerText() string {
 		return "esc • back"
 
 	case InstalledScreen:
-		return "↑/k up • ↓/j down • esc back"
+		return "↑/k up • ↓/j down • enter select • esc back"
 
 	case Version:
+		return "esc • back"
+
+	case SelectedInstalledScreen:
 		return "esc • back"
 	}
 
@@ -408,6 +445,9 @@ func (m model) View() tea.View {
 
 	case Version:
 		screenContent = m.version.View().Content
+
+	case SelectedInstalledScreen:
+		screenContent = m.selectedInstalled.View().Content
 
 	case MainMenuScreen:
 		listView := m.list.View()
@@ -479,9 +519,6 @@ func main() {
 	p := tea.NewProgram(newModel())
 	if _, err := p.Run(); err != nil {
 		fmt.Println(err)
-	} 	
-	
-
-	
+	}
 
 }
