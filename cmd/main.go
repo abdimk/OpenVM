@@ -36,6 +36,7 @@ type model struct {
 	packageManager *ui.PackageManagerModel
 
 	screen            Screen
+	selectedFrom      Screen
 	installed         utils.InstalledModel
 	version           utils.VersionModel
 	install           utils.InstallModel
@@ -225,7 +226,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	if _, ok := msg.(utils.BackMsg); ok {
 		if m.screen == SelectedInstalledScreen {
-			m.screen = InstalledScreen
+			// Return to whichever screen the selection was made from
+			// (Installed list or Install list).
+			back := m.selectedFrom
+			if back == MainMenuScreen || back == SelectedInstalledScreen {
+				back = InstalledScreen
+			}
+			m.screen = back
+			m.selectedFrom = MainMenuScreen
 		} else {
 			m.screen = MainMenuScreen
 		}
@@ -235,9 +243,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if lsm, ok := msg.(utils.LanguageSelectedMsg); ok {
 		m.selectedInstalled = process.NewSelectedInstalledModel(lsm.Language)
+		m.selectedFrom = m.screen
 		m.screen = SelectedInstalledScreen
 		m.updateLayout()
-		return m, nil
+		return m, m.selectedInstalled.Init()
 	}
 
 	switch m.screen {
@@ -332,6 +341,7 @@ func (m model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.updateLayout()
 
 				return m, m.installed.Init()
+
 			case "Check For Update":
 				m.screen = UpdateCheckScreen
 				m.updateLayout()
@@ -389,7 +399,7 @@ func (m model) footerText() string {
 		return "↑/k up • ↓/j down • enter select • q quit"
 
 	case InstallScreen:
-		return "esc • back"
+		return "↑/k up • ↓/j down • esc back"
 
 	case UpdateCheckScreen:
 		return "esc • back"
@@ -410,7 +420,7 @@ func (m model) footerText() string {
 		return "esc • back"
 
 	case SelectedInstalledScreen:
-		return "esc • back"
+		return "↑/k up • ↓/j down • enter select • esc back"
 	}
 
 	return ""
