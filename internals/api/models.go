@@ -10,6 +10,26 @@ type File struct {
 	SHA256   string `json:"sha256"`
 	Size     int64  `json:"size"`
 	Kind     string `json:"kind"`
+	// URL is the direct download link for the file. Go files leave it empty
+	// (the URL is derived from go.dev), while LLVM assets carry GitHub's
+	// browser_download_url.
+	URL string `json:"url,omitempty"`
+}
+
+// GitHubRelease is the raw JSON shape of one entry in GitHub's releases API,
+// as used by the LLVM project (https://github.com/llvm/llvm-project).
+type GitHubRelease struct {
+	TagName    string        `json:"tag_name"`
+	Draft      bool          `json:"draft"`
+	Prerelease bool          `json:"prerelease"`
+	Assets     []GitHubAsset `json:"assets"`
+}
+
+// GitHubAsset is a single downloadable file attached to a GitHub release.
+type GitHubAsset struct {
+	Name string `json:"name"`
+	Size int64  `json:"size"`
+	URL  string `json:"browser_download_url"`
 }
 
 type Release struct {

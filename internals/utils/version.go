@@ -20,6 +20,18 @@ import (
 const version = "0.0.1"
 
 func NewVersionModel() VersionModel {
+	pager := ui.NewPager(
+		"OpenVM Version",
+		"",
+	)
+	pager.HideHeader()
+	pager.HideFooter()
+	return VersionModel{
+		pager: pager,
+	}
+}
+
+func buildVersionContent(width int) string {
 	developerURL := "https://github.com/abdimk"
 
 	developer := lipgloss.NewStyle().
@@ -27,23 +39,23 @@ func NewVersionModel() VersionModel {
 		Hyperlink(developerURL).
 		Render(developerURL)
 
-	content := strings.Join([]string{
-		" [OpenVM]: " + version,
-		" [Machine]: " + GetMachineType(),
+	var parts []string
+
+	logo := ui.OpenVMLogo(width)
+	if logo != "" {
+		parts = append(parts, logo)
+	}
+
+	parts = append(parts,
+		" [OpenVM]: "+version,
+		" [Machine]: "+GetMachineType(),
 		" [OpenVM Path]: dummy path",
 		" [Installed Packages]:",
 		" [Available Storage]: 150GB",
-		" [Developer]: " + developer,
-	}, "\n\n")
-
-	pager := ui.NewPager(
-		"OpenVM Version",
-		content,
+		" [Developer]: "+developer,
 	)
-	pager.HideFooter()
-	return VersionModel{
-		pager: pager,
-	}
+
+	return strings.Join(parts, "\n\n")
 }
 
 type VersionModel struct {
@@ -79,6 +91,8 @@ func (v VersionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (v *VersionModel) SetSize(width, height int) {
 	v.width = width
 	v.height = height
+
+	v.pager.SetContent(buildVersionContent(width))
 
 	v.pager, _ = v.pager.Update(tea.WindowSizeMsg{
 		Width:  width,

@@ -92,12 +92,26 @@ func (p Progress) Percent() float64 {
 	return p.model.Percent()
 }
 
-
-func (p Progress) SetPercent(percent float64) {
-	p.model.SetPercent(percent)
+// Bar renders just the animated progress bar itself, without the help text
+// or surrounding padding — suitable for embedding in a header line.
+func (p Progress) Bar() string {
+	return p.model.View()
 }
 
-func (p Progress) IncrPercent(amount float64) tea.Cmd {
+// SetBarWidth resizes the bar (percentage of screen width is applied by the
+// caller). Pointer receiver: bubbles' SetWidth mutates the model, so a value
+// receiver would silently discard the change on a copy.
+func (p *Progress) SetBarWidth(width int) {
+	p.model.SetWidth(width)
+}
+
+// SetPercent sets the bar to a given 0..1 value and returns the animation
+// command that eases it there. Pointer receiver for the same reason.
+func (p *Progress) SetPercent(v float64) tea.Cmd {
+	return p.model.SetPercent(v)
+}
+
+func (p *Progress) IncrPercent(amount float64) tea.Cmd {
 	return p.model.IncrPercent(amount)
 }
 

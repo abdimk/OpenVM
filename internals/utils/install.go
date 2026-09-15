@@ -20,11 +20,11 @@ type InstallModel struct {
 
 func NewInstallModel() InstallModel {
 	items := []ui.Item{
+		{TitleText: "C", DescriptionText: "C compiler toolchain (GCC/Clang)"},
+		{TitleText: "C++", DescriptionText: "C/C++ compiler toolchain (GCC/Clang)"},
 		{TitleText: "Go", DescriptionText: "Go programming language and toolchain"},
 		{TitleText: "Python", DescriptionText: "Python interpreter and pip"},
 		{TitleText: "Node", DescriptionText: "Node.js runtime and npm"},
-		{TitleText: "C++", DescriptionText: "C/C++ compiler toolchain (GCC/Clang)"},
-		{TitleText: "C", DescriptionText: "C compiler toolchain (GCC/Clang)"},
 		{TitleText: "Rust", DescriptionText: "Rustup, rustc and cargo"},
 		{TitleText: "Docker", DescriptionText: "Docker Engine and CLI"},
 		{TitleText: "Kubernetes", DescriptionText: "kubectl command-line tool"},

@@ -103,24 +103,26 @@ func (m model) header() string {
 	return style.Render("OpenVM")
 }
 
+
+// description is the shared tagline rendered under the header on every
+// screen except Version (which shows the logo banner instead).
 func (m model) description() string {
-	var DefaultDescription string
-
-	if len(DefaultDescription) == 0 {
-		DefaultDescription = "OpenVM is a Terminal User Interface (TUI) for managing development tools and programming languages.\n" +
-			"It simplifies installing, updating, switching between versions, and repairing tools from one unified terminal interface."
-
+	if m.width <= 0 {
+		return ""
 	}
+
+	description := "OpenVM is a Terminal User Interface (TUI) for managing development tools and programming languages.\n" +
+		"It simplifies installing, updating, switching between versions, and repairing tools from one unified terminal interface."
+
 	style := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#888888")).
 		Width(m.width).
 		Align(lipgloss.Center).
 		MarginBottom(1)
 
-	return style.Render(
-		DefaultDescription,
-	)
+	return style.Render(description)
 }
+
 func (m model) buildListTitle() string {
 	if m.width <= 0 {
 		return "Available Commands"
@@ -162,6 +164,13 @@ func (m *model) updateLayout() {
 
 	headerHeight := lipgloss.Height(m.header())
 	descriptionHeight := lipgloss.Height(m.description())
+
+	// The Version screen shows the logo banner inside the pager content
+	// instead of the shared text description, so zero-out the description
+	// height so all remaining space goes to the pager.
+	if m.screen == Version {
+		descriptionHeight = 0
+	}
 
 	footer := ui.NewFooter(
 		m.width,
@@ -224,8 +233,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateLayout()
 		return m, nil
 	}
+
 	if _, ok := msg.(utils.BackMsg); ok {
 		if m.screen == SelectedInstalledScreen {
+			// Leaving the screen: cancel an in-flight download and clear the
+			// transient footer hint.
+			m.selectedInstalled.Cancel()
+			utils.ClearFooterHint()
 			// Return to whichever screen the selection was made from
 			// (Installed list or Install list).
 			back := m.selectedFrom
@@ -420,7 +434,19 @@ func (m model) footerText() string {
 		return "esc • back"
 
 	case SelectedInstalledScreen:
-		return "↑/k up • ↓/j down • enter select • esc back"
+		if hint := utils.CurrentFooterHint(); hint.Text != "" {
+			if hint.Color != "" {
+				return lipgloss.NewStyle().
+					Foreground(lipgloss.Color(hint.Color)).
+					Bold(true).
+					Render(hint.Text)
+			}
+			return hint.Text
+		}
+		if m.selectedInstalled.Busy() {
+			return "downloading • esc cancel"
+		}
+		return "↑/k up • ↓/j down • enter install • esc back"
 	}
 
 	return ""
@@ -486,10 +512,23 @@ func (m model) View() tea.View {
 		screenContent = "Unknown Screen"
 	}
 
-	top := lipgloss.JoinVertical(
+	// The Version screen carries its own logo banner, so the shared text
+	// description is skipped there to avoid stacking two big headers.
+	topBlock := lipgloss.JoinVertical(
 		lipgloss.Left,
 		m.header(),
-		m.description(),
+	)
+	if m.screen != Version {
+		topBlock = lipgloss.JoinVertical(
+			lipgloss.Left,
+			m.header(),
+			m.description(),
+		)
+	}
+
+	top := lipgloss.JoinVertical(
+		lipgloss.Left,
+		topBlock,
 		screenContent,
 	)
 

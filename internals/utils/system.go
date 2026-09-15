@@ -25,8 +25,8 @@ var languageBinaries = map[string][]string{
 	Python: {"python3", "python"},
 	Node:   {"node"},
 	Rust:   {"rustc"},
-	Gpp:    {"g++"},
-	Gcc:    {"gcc"},
+	Gpp:    {"g++", "clang++"},
+	Gcc:    {"gcc", "clang"},
 }
 
 var toolBinaries = map[string][]string{
@@ -106,7 +106,7 @@ func getVersion(binary string) string {
 		args = []string{"--version"}
 	case "node":
 		args = []string{"--version"}
-	case "g++", "gcc":
+	case "g++", "gcc", "clang++", "clang":
 		args = []string{"--version"}
 	default:
 		args = []string{"--version"}

@@ -30,6 +30,7 @@ var (
 type Pager struct {
 	title      string
 	content    string
+	showHeader bool
 	showFooter bool
 	ready      bool
 	viewport   viewport.Model
@@ -39,8 +40,14 @@ func NewPager(title, content string) Pager {
 	return Pager{
 		title:      title,
 		content:    content,
+		showHeader: true,
 		showFooter: true,
 	}
+}
+
+// HideHeader disables the pager's title bar.
+func (p *Pager) HideHeader() {
+	p.showHeader = false
 }
 
 // HideFooter disables the pager's own scroll-percentage footer so the view
@@ -59,7 +66,10 @@ func (p Pager) Update(msg tea.Msg) (Pager, tea.Cmd) {
 	switch msg := msg.(type) {
 
 	case tea.WindowSizeMsg:
-		headerHeight := lipgloss.Height(p.headerView())
+		var headerHeight int
+		if p.showHeader {
+			headerHeight = lipgloss.Height(p.headerView())
+		}
 
 		var footerHeight int
 		if p.showFooter {
@@ -96,11 +106,14 @@ func (p Pager) View() string {
 		return "\nInitializing..."
 	}
 
-	view := lipgloss.JoinVertical(
-		lipgloss.Left,
-		p.headerView(),
-		p.viewport.View(),
-	)
+	view := p.viewport.View()
+	if p.showHeader {
+		view = lipgloss.JoinVertical(
+			lipgloss.Left,
+			p.headerView(),
+			view,
+		)
+	}
 	if p.showFooter {
 		view = lipgloss.JoinVertical(
 			lipgloss.Left,
