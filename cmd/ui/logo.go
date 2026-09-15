@@ -1,9 +1,9 @@
 package ui
 
 import (
-	_ "embed"
 	"bytes"
 	"compress/zlib"
+	_ "embed"
 	"encoding/binary"
 	"fmt"
 	"image"
@@ -20,11 +20,6 @@ import (
 //go:embed assets/openvm.png
 var openvmLogoPNG []byte
 
-// halfBlock rendering: each terminal cell shows two image pixels stacked
-// vertically using the ▀ (upper half) glyph with fg = top pixel and bg =
-// bottom pixel. This doubles the vertical resolution and keeps the logo's
-// exact colors on any truecolor terminal.
-
 type logoPixel struct {
 	r, g, b, a uint8
 }
@@ -40,8 +35,6 @@ var logoCache struct {
 	rendered string
 }
 
-// OpenVMLogo renders the embedded OpenVM PNG. It tries Sixel (true image)
-// first, falling back to half-block characters. The result is cached per width.
 func OpenVMLogo(maxWidth int) string {
 	logoCache.Lock()
 	defer logoCache.Unlock()
@@ -60,10 +53,8 @@ func OpenVMLogo(maxWidth int) string {
 	return out
 }
 
-// detectSixel returns true if the terminal likely supports Sixel graphics.
 func detectSixel() bool {
-	// WSL inherits Windows env vars like WT_SESSION but the actual pty
-	// (bash / Linux console) does not render Sixel — bail out early.
+
 	if isWSL() {
 		return false
 	}
@@ -76,19 +67,17 @@ func detectSixel() bool {
 	case "WezTerm", "iTerm.app", "mintty", "contour", "Black Box":
 		return true
 	}
-	// Windows Terminal v1.22+ supports Sixel
+
 	if os.Getenv("WT_SESSION") != "" {
 		return true
 	}
-	// MSYS2 / Git Bash on Windows often uses mintty
+
 	if os.Getenv("MSYSTEM") != "" && os.Getenv("TERM_PROGRAM") == "" {
 		return true
 	}
 	return false
 }
 
-// isWSL detects Windows Subsystem for Linux by checking the environment
-// or /proc/version which always contains "Microsoft" or "WSL" inside WSL.
 func isWSL() bool {
 	if os.Getenv("WSL_DISTRO_NAME") != "" {
 		return true
@@ -103,9 +92,6 @@ func isWSL() bool {
 	return strings.Contains(string(data), "Microsoft") || strings.Contains(string(data), "WSL")
 }
 
-// renderSixelLogo decodes the embedded PNG with the standard library, scales
-// it to fit maxWidth terminal cells, and encodes it as Sixel graphics. Returns
-// "" when Sixel is unsupported or encoding fails.
 func renderSixelLogo(maxWidth int) string {
 	if !detectSixel() || maxWidth < 8 {
 		return ""
@@ -123,7 +109,6 @@ func renderSixelLogo(maxWidth int) string {
 		return ""
 	}
 
-	// Scale to fit maxWidth cells (assume ~8 px per cell width).
 	const cellPx = 8
 	targetW := maxWidth * cellPx
 	if targetW > srcW {
@@ -146,7 +131,6 @@ func renderSixelLogo(maxWidth int) string {
 		return ""
 	}
 
-	// Centre the image: estimate the cell count and add left padding.
 	sixelCells := targetW / cellPx
 	padding := (maxWidth - sixelCells) / 2
 	if padding > 0 {
@@ -155,7 +139,6 @@ func renderSixelLogo(maxWidth int) string {
 	return sixelData
 }
 
-// resizeNearest scales src to w×h using nearest-neighbour sampling.
 func resizeNearest(src image.Image, w, h int) image.Image {
 	bounds := src.Bounds()
 	srcW := bounds.Dx()
@@ -177,11 +160,9 @@ func renderOpenVMLogo(maxWidth int) string {
 		return ""
 	}
 
-	// Keep the aspect ratio: each cell is 1px wide × 2px tall.
 	cellW := maxWidth
 	cellRows := img.height * cellW / (2 * img.width)
 
-	// Cap the banner height so it never eats the whole screen.
 	const maxRows = 14
 	if cellRows > maxRows {
 		cellRows = maxRows
@@ -191,7 +172,6 @@ func renderOpenVMLogo(maxWidth int) string {
 		return ""
 	}
 
-	// Centre the logo when it is narrower than the available width.
 	leftPad := strings.Repeat(" ", (maxWidth-cellW)/2)
 
 	var b strings.Builder
@@ -208,8 +188,6 @@ func renderOpenVMLogo(maxWidth int) string {
 			tr, tg, tb, ta := img.avgBlock(x0, x1, y0, mid)
 			br, bg, bb, ba := img.avgBlock(x0, x1, mid, y1)
 
-			// Anti-aliased edges: blend partial coverage toward the black
-			// terminal background so borders look smooth, not chunky.
 			tr, tg, tb = blendToBlack(tr, tg, tb, ta)
 			br, bg, bb = blendToBlack(br, bg, bb, ba)
 
@@ -222,9 +200,6 @@ func renderOpenVMLogo(maxWidth int) string {
 	return out
 }
 
-// halfCell picks the glyph and colors for one terminal cell. Fully
-// transparent areas become plain spaces so the terminal background shows
-// through, exactly like the original transparent PNG.
 func halfCell(tr, tg, tb, ta, br, bg, bb, ba float64) string {
 	const alphaMin = 0.45
 
@@ -233,21 +208,19 @@ func halfCell(tr, tg, tb, ta, br, bg, bb, ba float64) string {
 	switch {
 	case ta < alphaMin && ba < alphaMin:
 		return " "
-	case ta < alphaMin: // bottom half only → ▄ in the bottom color
+	case ta < alphaMin:
 		return lipgloss.NewStyle().
 			Foreground(lipgloss.Color(rgbHex(br, bg, bb))).
 			Render("▄")
-	case ba < alphaMin: // top half only → ▀ in the top color
+	case ba < alphaMin:
 		return topStyle.Render("▀")
-	default: // both halves → ▀ with fg = top pixel, bg = bottom pixel
+	default:
 		return topStyle.
 			Background(lipgloss.Color(rgbHex(br, bg, bb))).
 			Render("▀")
 	}
 }
 
-// blendToBlack scales a pixel color by its alpha coverage, simulating
-// compositing over the terminal's black background.
 func blendToBlack(r, g, b, a float64) (float64, float64, float64) {
 	if a >= 1 {
 		return r, g, b
@@ -268,7 +241,6 @@ func rgbHex(r, g, b float64) string {
 	return fmt.Sprintf("#%02x%02x%02x", to255(r), to255(g), to255(b))
 }
 
-// avgBlock alpha-weights the average color of a rectangle of pixels.
 func (img logoImage) avgBlock(x0, x1, y0, y1 int) (r, g, b, a float64) {
 	if x1 <= x0 {
 		x1 = x0 + 1
@@ -297,8 +269,6 @@ func (img logoImage) avgBlock(x0, x1, y0, y1 int) (r, g, b, a float64) {
 	return rs / as, gs / as, bs / as, as / n
 }
 
-// decodePNG is a minimal PNG decoder covering 8-bit non-interlaced RGB and
-// RGBA images — exactly what the embedded logo uses. No external deps.
 func decodePNG(data []byte) (logoImage, error) {
 	var img logoImage
 
@@ -318,7 +288,7 @@ func decodePNG(data []byte) (logoImage, error) {
 		length := int(binary.BigEndian.Uint32(data[pos : pos+4]))
 		ctype := string(data[pos+4 : pos+8])
 		body := data[pos+8 : pos+8+length]
-		pos += 12 + length // data + CRC
+		pos += 12 + length
 
 		switch ctype {
 		case "IHDR":
@@ -326,7 +296,7 @@ func decodePNG(data []byte) (logoImage, error) {
 			height = int(binary.BigEndian.Uint32(body[4:8]))
 			bitDepth = int(body[8])
 			colorType = int(body[9])
-			if body[12] != 0 { // interlace method
+			if body[12] != 0 {
 				return img, fmt.Errorf("interlaced PNG not supported")
 			}
 			haveHeader = true
@@ -355,7 +325,7 @@ func decodePNG(data []byte) (logoImage, error) {
 	}
 	defer raw.Close()
 
-	stride := width*bpp
+	stride := width * bpp
 	buf := make([]byte, height*(stride+1))
 	if _, err := io.ReadFull(raw, buf); err != nil {
 		return img, fmt.Errorf("image data truncated: %w", err)
@@ -384,14 +354,14 @@ func decodePNG(data []byte) (logoImage, error) {
 			}
 
 			switch filter {
-			case 0: // None
-			case 1: // Sub
+			case 0:
+			case 1:
 				cur[i] = byte(int(cur[i]) + left)
-			case 2: // Up
+			case 2:
 				cur[i] = byte(int(cur[i]) + up)
-			case 3: // Average
+			case 3:
 				cur[i] = byte(int(cur[i]) + (left+up)/2)
-			case 4: // Paeth
+			case 4:
 				cur[i] = byte(int(cur[i]) + paeth(left, up, upleft))
 			default:
 				return img, fmt.Errorf("bad filter %d", filter)

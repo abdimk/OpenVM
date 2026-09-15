@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	progressPadding = 2
+	progressPadding  = 2
 	progressMaxWidth = 80
 )
 
@@ -19,11 +19,9 @@ var progressHelpStyle = lipgloss.NewStyle().
 
 type progressTickMsg time.Time
 
-
 type Progress struct {
 	model progress.Model
 }
-
 
 func NewProgress() Progress {
 	return Progress{
@@ -31,11 +29,9 @@ func NewProgress() Progress {
 	}
 }
 
-
 func (p Progress) Init() tea.Cmd {
 	return progressTickCmd()
 }
-
 
 func (p Progress) Update(msg tea.Msg) (Progress, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -78,7 +74,6 @@ func (p Progress) Update(msg tea.Msg) (Progress, tea.Cmd) {
 	return p, nil
 }
 
-
 func (p Progress) View() string {
 	pad := strings.Repeat(" ", progressPadding)
 
@@ -87,26 +82,18 @@ func (p Progress) View() string {
 		pad + progressHelpStyle.Render("Press any key to quit")
 }
 
-
 func (p Progress) Percent() float64 {
 	return p.model.Percent()
 }
 
-// Bar renders just the animated progress bar itself, without the help text
-// or surrounding padding — suitable for embedding in a header line.
 func (p Progress) Bar() string {
 	return p.model.View()
 }
 
-// SetBarWidth resizes the bar (percentage of screen width is applied by the
-// caller). Pointer receiver: bubbles' SetWidth mutates the model, so a value
-// receiver would silently discard the change on a copy.
 func (p *Progress) SetBarWidth(width int) {
 	p.model.SetWidth(width)
 }
 
-// SetPercent sets the bar to a given 0..1 value and returns the animation
-// command that eases it there. Pointer receiver for the same reason.
 func (p *Progress) SetPercent(v float64) tea.Cmd {
 	return p.model.SetPercent(v)
 }

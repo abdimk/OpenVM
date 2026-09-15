@@ -10,8 +10,6 @@ import (
 	ui "github.com/abdimk/openvm/cmd/ui"
 )
 
-// InstallModel is the "Install" screen: a selectable list of languages and
-// tools that can be installed.
 type InstallModel struct {
 	width  int
 	height int
@@ -48,10 +46,6 @@ func (m *InstallModel) SetSize(width, height int) {
 	m.width = width
 	m.height = height
 
-	// The title row is drawn on top of the list in View(), so reserve its
-	// height here (same height budget as InstalledModel). Telling the list
-	// the full height would make title + list one row over budget and clip
-	// the footer bar off the bottom of the screen.
 	titleHeight := lipgloss.Height(m.buildListTitle())
 	listHeight := height - titleHeight
 	if listHeight < 1 {
@@ -83,9 +77,6 @@ func (m InstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// selectedTool resolves the highlighted install entry into a Language,
-// reusing already-detected install info (path/version) when the tool is
-// present on this machine.
 func (m InstallModel) selectedTool() (Language, bool) {
 	if m.tools == nil {
 		return Language{}, false
@@ -102,8 +93,6 @@ func (m InstallModel) selectedTool() (Language, bool) {
 		}
 	}
 
-	// Not installed (or detection unavailable on this OS): still let the
-	// selection through so the version browser can render for it.
 	return Language{Name: item.TitleText}, true
 }
 
@@ -151,9 +140,6 @@ func (m InstallModel) View() tea.View {
 		content = m.tools.View()
 	}
 
-	// The list is already sized to exactly height - titleHeight (see
-	// SetSize), so render it as-is — no Height() wrapper. lipgloss Height()
-	// is a minimum, not a crop, so it could only ever grow the view.
 	screen := lipgloss.JoinVertical(
 		lipgloss.Left,
 		m.buildListTitle(),

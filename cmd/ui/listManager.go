@@ -10,11 +10,9 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-
 type InstalledPackageMsg struct {
 	Package string
 }
-
 
 type PackageManagerModel struct {
 	packages []string
@@ -41,7 +39,6 @@ var (
 			Foreground(lipgloss.Color("42"))
 )
 
-
 func NewPackageManager(
 	packages []string,
 	install func(string) tea.Cmd,
@@ -66,7 +63,6 @@ func NewPackageManager(
 	}
 }
 
-
 func (m *PackageManagerModel) Init() tea.Cmd {
 	if len(m.packages) == 0 {
 		m.done = true
@@ -87,15 +83,13 @@ func (m *PackageManagerModel) Update(msg tea.Msg) tea.Cmd {
 		m.height = msg.Height
 
 	case InstalledPackageMsg:
-		
+
 		if m.done {
 			return nil
 		}
 
-	
 		currentPackage := m.packages[m.index]
 
-	
 		if m.index >= len(m.packages)-1 {
 			m.done = true
 
@@ -108,10 +102,8 @@ func (m *PackageManagerModel) Update(msg tea.Msg) tea.Cmd {
 			float64(m.index) / float64(len(m.packages)),
 		)
 
-	
 		installCmd := m.install(m.packages[m.index])
 
-	
 		_ = currentPackage
 
 		return tea.Batch(
@@ -137,7 +129,6 @@ func (m *PackageManagerModel) Update(msg tea.Msg) tea.Cmd {
 	return nil
 }
 
-
 func (m PackageManagerModel) View() string {
 	if len(m.packages) == 0 {
 		return "No packages to install."
@@ -154,7 +145,6 @@ func (m PackageManagerModel) View() string {
 
 	countWidth := lipgloss.Width(fmt.Sprintf("%d", total))
 
-
 	packageCount := fmt.Sprintf(
 		" %*d/%*d",
 		countWidth,
@@ -165,7 +155,6 @@ func (m PackageManagerModel) View() string {
 
 	spin := m.spinner.View() + " "
 	prog := m.progress.View()
-
 
 	cellsAvailable := max(
 		0,
@@ -182,7 +171,6 @@ func (m PackageManagerModel) View() string {
 		MaxWidth(cellsAvailable).
 		Render("Installing " + packageName)
 
-
 	cellsRemaining := max(
 		0,
 		m.width-lipgloss.Width(
@@ -195,17 +183,14 @@ func (m PackageManagerModel) View() string {
 	return spin + info + gap + prog + packageCount
 }
 
-
 func (m *PackageManagerModel) SetSize(width, height int) {
 	m.width = width
 	m.height = height
 }
 
-
 func (m *PackageManagerModel) Done() bool {
 	return m.done
 }
-
 
 func (m *PackageManagerModel) CurrentPackage() string {
 	if len(m.packages) == 0 || m.done {
@@ -215,12 +200,10 @@ func (m *PackageManagerModel) CurrentPackage() string {
 	return m.packages[m.index]
 }
 
-
 func (m *PackageManagerModel) TotalPackages() int {
 	return len(m.packages)
 }
 
-// CurrentIndex returns the current package index.
 func (m *PackageManagerModel) CurrentIndex() int {
 	return m.index
 }

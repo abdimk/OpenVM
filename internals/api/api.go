@@ -14,20 +14,14 @@ const (
 	requestHTTPTimeout = 15 * time.Second
 )
 
-// FetchStableReleases returns the currently stable Go releases from
-// https://go.dev/dl/?mode=json
 func FetchStableReleases() ([]Release, error) {
 	return fetchReleases(goVersionsURL)
 }
 
-// FetchAllReleases returns every archived Go release from
-// https://go.dev/dl/?mode=json&include=all
 func FetchAllReleases() ([]Release, error) {
 	return fetchReleases(goAllVersionsURL)
 }
 
-// ReleasesForMachine fetches all Go releases and keeps only the ones that
-// ship a downloadable file matching the current machine's OS/arch.
 func ReleasesForMachine() ([]Release, error) {
 	releases, err := FetchAllReleases()
 	if err != nil {

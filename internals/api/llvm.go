@@ -10,17 +10,11 @@ import (
 )
 
 const (
-	// llvmReleasesURL is the GitHub releases API for the LLVM project, which
-	// publishes the official prebuilt toolchain packages as release assets.
 	llvmReleasesURL = "https://api.github.com/repos/llvm/llvm-project/releases"
-	// llvmMaxPages caps how many 100-entry pages we walk. LLVM has well over
-	// 100 tagged releases, so a bounded paginated walk is required.
+
 	llvmMaxPages = 5
 )
 
-// FetchLLVMReleases returns every published, non-release-candidate LLVM
-// release that ships a downloadable toolchain package matching the current
-// machine's OS and architecture, newest first.
 func FetchLLVMReleases() ([]Release, error) {
 	var all []GitHubRelease
 	for page := 1; page <= llvmMaxPages; page++ {
@@ -75,9 +69,6 @@ func fetchGitHubReleases(url string) ([]GitHubRelease, error) {
 	return releases, nil
 }
 
-// llvmReleasesToModel converts raw GitHub release data into OpenVM's
-// api.Release model. Drafts, prereleases (release candidates) and versions
-// with no package for the current machine are dropped.
 func llvmReleasesToModel(releases []GitHubRelease) []Release {
 	out := make([]Release, 0, len(releases))
 
@@ -105,15 +96,10 @@ func llvmReleasesToModel(releases []GitHubRelease) []Release {
 	return out
 }
 
-// llvmAssetForMachine picks the best archive asset from a release for the
-// current OS/architecture. Among the matching assembles the most preferred
-// compression (zstd over xz over gzip over zip) is chosen.
 func llvmAssetForMachine(version string, assets []GitHubAsset) (File, bool) {
 	return llvmAssetFor(version, assets, runtime.GOOS, runtime.GOARCH)
 }
 
-// llvmAssetFor is llvmAssetForMachine with an explicit target, so the
-// matcher can be exercised for every platform in tests.
 func llvmAssetFor(version string, assets []GitHubAsset, targetOS, targetArch string) (File, bool) {
 	bestRank := int(^uint(0) >> 1)
 	var best *GitHubAsset
@@ -123,7 +109,7 @@ func llvmAssetFor(version string, assets []GitHubAsset, targetOS, targetArch str
 
 		rank := llvmArchiveRank(a.Name)
 		if rank == 0 {
-			continue // not an installable archive
+			continue
 		}
 		if !llvmMatches(a.Name, targetOS, targetArch) {
 			continue
@@ -149,8 +135,6 @@ func llvmAssetFor(version string, assets []GitHubAsset, targetOS, targetArch str
 	}, true
 }
 
-// llvmArchiveRank maps a downloadable asset's extension to a preference
-// rank; a rank of 0 means "not an installable package".
 func llvmArchiveRank(name string) int {
 	switch {
 	case strings.HasSuffix(name, ".tar.zst"):
@@ -166,15 +150,9 @@ func llvmArchiveRank(name string) int {
 	}
 }
 
-// llvmMatches reports whether an LLVM release asset is an official prebuilt
-// toolchain package for the given OS/architecture, ignoring installers
-// (.msi/.exe), source tarballs, docs and companion metadata files
-// (.jsonl, .sig).
 func llvmMatches(name, targetOS, targetArch string) bool {
 	lower := strings.ToLower(name)
 
-	// Only amalgamated toolchain packages: "LLVM-*" and "clang+llvm-*",
-	// and only installable archives (rank 0 covers .msi/.exe/.jsonl/.sig).
 	if (!strings.HasPrefix(lower, "llvm-") && !strings.HasPrefix(lower, "clang+llvm-")) ||
 		llvmArchiveRank(lower) == 0 {
 		return false

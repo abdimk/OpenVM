@@ -24,7 +24,7 @@ type InstalledModel struct {
 }
 
 func NewInstalledModel() InstalledModel {
-	langs := GetLanguages() // same package, no import needed
+	langs := GetLanguages()
 
 	items := make([]ui.Item, 0, len(langs))
 	for _, lang := range langs {
@@ -53,9 +53,6 @@ func (m *InstalledModel) SetSize(width, height int) {
 	m.width = width
 	m.height = height
 
-	// The title row is drawn on top of the list in View(), so reserve its
-	// height here. If the list is told the full height, title + list =
-	// height + 1 and the last row (footer bar) gets clipped off-screen.
 	titleHeight := lipgloss.Height(m.buildListTitle())
 	listHeight := height - titleHeight
 	if listHeight < 1 {
@@ -145,9 +142,6 @@ func (m InstalledModel) View() tea.View {
 		content = m.languages.View()
 	}
 
-	// The list is already sized to exactly height - titleHeight (see
-	// SetSize), so render it as-is — no Height() wrapper. lipgloss Height()
-	// is a minimum, not a crop, so it could only ever grow the view.
 	screen := lipgloss.JoinVertical(
 		lipgloss.Left,
 		m.buildListTitle(),

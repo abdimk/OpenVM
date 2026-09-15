@@ -27,7 +27,6 @@ func (f Footer) View() string {
 		Foreground(lipgloss.Color("#6B7280")).
 		Padding(0, 2)
 
-
 	lineStyle := lipgloss.NewStyle().
 		MarginBottom(1).
 		Render(strings.Repeat("─", f.Width))

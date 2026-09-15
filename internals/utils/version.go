@@ -9,14 +9,6 @@ import (
 	"github.com/abdimk/openvm/cmd/ui"
 )
 
-/*
- * OpenVM: 0.0.1
- * Machine:
- * OpenVM Path: dummy path
- * Installed Packages:
- * Available Storage: 150GB
- * Developer: github.com/abdimk
- */
 const version = "0.0.1"
 
 func NewVersionModel() VersionModel {

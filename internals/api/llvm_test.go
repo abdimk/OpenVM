@@ -2,8 +2,6 @@ package api
 
 import "testing"
 
-// assets2311 mirrors the asset list of the real LLVM-23.1.1 release
-// (https://github.com/llvm/llvm-project/releases).
 var assets2311 = []GitHubAsset{
 	{Name: "clang+llvm-23.1.1-aarch64-pc-windows-msvc.tar.xz", Size: 1},
 	{Name: "clang+llvm-23.1.1-aarch64-pc-windows-msvc.tar.xz.jsonl", Size: 1},
@@ -93,7 +91,7 @@ func TestLLVMAssetForDarwinARM64(t *testing.T) {
 }
 
 func TestLLVMAssetForDarwinAMD64(t *testing.T) {
-	// LLVM 23 no longer ships Intel macOS binaries: must not match anything.
+
 	if _, ok := llvmAssetFor("23.1.1", assets2311, "darwin", "amd64"); ok {
 		t.Fatal("expected no Darwin amd64 asset in LLVM 23.1.1")
 	}
@@ -116,7 +114,7 @@ func TestLLVMAssetIgnoresNoise(t *testing.T) {
 }
 
 func TestLLVMMatchesOlderNaming(t *testing.T) {
-	// Older releases used different conventions that must still be matched.
+
 	cases := []struct {
 		name, os, arch string
 		want           bool

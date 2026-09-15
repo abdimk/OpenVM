@@ -8,7 +8,7 @@ import (
 
 type Spinner struct {
 	model spinner.Model
-	text string
+	text  string
 }
 
 func SpinnerModel(text string) Spinner {
@@ -19,21 +19,20 @@ func SpinnerModel(text string) Spinner {
 
 	return Spinner{
 		model: s,
-		text: text,
+		text:  text,
 	}
 }
 
-func(s Spinner) Init() tea.Cmd {
+func (s Spinner) Init() tea.Cmd {
 	return s.model.Tick
 }
 
-func(s Spinner) Update(msg tea.Msg) (Spinner, tea.Cmd) {
+func (s Spinner) Update(msg tea.Msg) (Spinner, tea.Cmd) {
 	var cmd tea.Cmd
 	s.model, cmd = s.model.Update(msg)
 	return s, cmd
 }
 
-func(s Spinner) View() string{	
+func (s Spinner) View() string {
 	return s.model.View() + " " + s.text
 }
-

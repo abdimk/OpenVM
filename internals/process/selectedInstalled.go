@@ -16,23 +16,15 @@ import (
 	"github.com/abdimk/openvm/internals/utils"
 )
 
-// progressDrainDoneMsg is a sentinel telling Update to stop re-arming the
-// progress-event listener (the download goroutine has finished).
 type progressDrainDoneMsg struct{}
 
-// footerHintResetMsg clears a transient footer hint (e.g. the "you already
-// have this version" notice) after its timeout elapses.
 type footerHintResetMsg struct{}
 
-// VersionsFetchedMsg is sent once the available version list has been
-// downloaded (successfully or not) from the language's source (go.dev for Go,
-// GitHub releases for Clang/LLVM).
 type VersionsFetchedMsg struct {
 	Releases []api.Release
 	Err      error
 }
 
-// versionEntry couples a list item with the release/file data behind it.
 type versionEntry struct {
 	title   string
 	release api.Release
@@ -52,10 +44,9 @@ type SelectedInstalledModel struct {
 	loading bool
 	err     error
 
-	spinner ui.Spinner
+	spinner  ui.Spinner
 	progress ui.Progress
 
-	// Download/install pipeline state.
 	phase          utils.DownloadPhase
 	activeVersion  string
 	lastPercent    float64
@@ -64,14 +55,14 @@ type SelectedInstalledModel struct {
 	cancel         context.CancelFunc
 	progressCh     <-chan utils.DownloadProgressMsg
 	progressDone   <-chan struct{}
-	seq            int    // pipeline instance tag; stale events are ignored
-	currentVersion string // authoritative after a successful install
+	seq            int
+	currentVersion string
 }
 
 func NewSelectedInstalledModel(lang utils.Language) SelectedInstalledModel {
 	m := SelectedInstalledModel{
 		language: lang,
-		loading:  isGo(lang) || isClang(lang),
+		loading:  isGo(lang) || isClang(lang) || isPython(lang),
 		spinner:  ui.SpinnerModel("Fetching available versions..."),
 		progress: ui.NewProgress(),
 		phase:    utils.PhaseIdle,
@@ -84,21 +75,24 @@ func isGo(lang utils.Language) bool {
 	return strings.EqualFold(lang.Name, utils.Go)
 }
 
-// isClang reports whether the language maps to the C/C++ toolchain installs,
-// which are managed from the LLVM (Clang) release packages.
 func isClang(lang utils.Language) bool {
 	name := strings.ToLower(strings.TrimSpace(lang.Name))
 	return name == "c" || name == "c++"
 }
 
-// languageLabel returns the name shown in titles and toasts for the version
-// browser, since the C entry is backed by Clang.
+func isPython(lang utils.Language) bool {
+	return strings.EqualFold(strings.TrimSpace(lang.Name), utils.Python)
+}
+
 func (m SelectedInstalledModel) languageLabel() string {
 	if isClang(m.language) {
 		return "Clang"
 	}
 	if isGo(m.language) {
 		return "Go"
+	}
+	if isPython(m.language) {
+		return "Python"
 	}
 	return m.language.Name
 }
@@ -114,6 +108,11 @@ func (m SelectedInstalledModel) Init() tea.Cmd {
 		return tea.Batch(
 			m.spinner.Init(),
 			fetchClangVersionsCmd(),
+		)
+	case isPython(m.language):
+		return tea.Batch(
+			m.spinner.Init(),
+			fetchPythonVersionsCmd(),
 		)
 	default:
 		return nil
@@ -134,6 +133,13 @@ func fetchClangVersionsCmd() tea.Cmd {
 	}
 }
 
+func fetchPythonVersionsCmd() tea.Cmd {
+	return func() tea.Msg {
+		releases, err := api.FetchPythonReleases()
+		return VersionsFetchedMsg{Releases: releases, Err: err}
+	}
+}
+
 func (m *SelectedInstalledModel) SetSize(width, height int) {
 	m.width = width
 	m.height = height
@@ -149,9 +155,6 @@ func (m *SelectedInstalledModel) SetSize(width, height int) {
 		m.progress.SetBarWidth(barWidth)
 	}
 
-	// View() renders: header line, blank line, status/title line, then the
-	// list, a blank line, and the detail pane — so the list gets what's left
-	// after those 4 fixed lines plus the detail pane's height.
 	chrome := 4
 
 	detail := m.detailView()
@@ -174,15 +177,11 @@ func (m SelectedInstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "esc", "backspace":
 			if m.busy() {
 				if m.cancel != nil {
-					// Interrupt: cancel the download/pipeline. Nothing has
-					// been swapped yet (swap happens only on success), so
-					// backing out is always safe. The pipeline's result
-					// message will restore the list state.
+
 					m.cancel()
 					return m, nil
 				}
-				// Safety net: busy state with no live pipeline (a dropped
-				// result message). Reset so esc can never trap the user.
+
 				m.phase = utils.PhaseIdle
 				m.activeVersion = ""
 				m.cancel = nil
@@ -191,9 +190,7 @@ func (m SelectedInstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			if m.phase == utils.PhaseDone || m.phase == utils.PhaseFailed {
-				// First esc after a finished install: return to the version
-				// list view instead of leaving the screen. A second esc then
-				// goes back to the previous menu.
+
 				m.phase = utils.PhaseIdle
 				m.err = nil
 				m.activeVersion = ""
@@ -212,8 +209,7 @@ func (m SelectedInstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			if entry.current {
-				// Re-downloading the active version is pointless — say so in
-				// orange, then let the footer fall back to its default hint.
+
 				utils.EmitFooterHintColored(
 					fmt.Sprintf("You already have this version (%s) • pick another or esc back", entry.title),
 					"#FFA500")
@@ -222,10 +218,7 @@ func (m SelectedInstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				})
 			}
 			if entry.file.Filename != "" {
-				// startDownload mutates m through its pointer receiver; the
-				// updated value is what we return below. Note it must not
-				// return a *SelectedInstalledModel as tea.Model — main.go
-				// asserts the value type.
+
 				cmd := m.startDownload(entry)
 				return m, cmd
 			}
@@ -253,7 +246,7 @@ func (m SelectedInstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case utils.DownloadProgressMsg:
 		if msg.Seq != m.seq {
-			return m, m.nextProgress() // stale event from a cancelled run
+			return m, m.nextProgress()
 		}
 		switch msg.Phase {
 		case utils.PhaseVerifying:
@@ -281,12 +274,12 @@ func (m SelectedInstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case utils.DownloadResultMsg:
 		if msg.Seq != m.seq {
-			return m, nil // stale result from a superseded run
+			return m, nil
 		}
 		m.cancel = nil
 		switch msg.Phase {
 		case utils.PhaseDone:
-			// Swap completed: the new toolchain is active.
+
 			m.phase = utils.PhaseDone
 			m.activeVersion = msg.Version
 			m.currentVersion = msg.Version
@@ -299,14 +292,14 @@ func (m SelectedInstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.progress.SetPercent(1.0)
 
 		case utils.PhaseCancelled:
-			// User interrupted: nothing was touched, restore the list.
+
 			m.phase = utils.PhaseIdle
 			m.activeVersion = ""
 			m.restoreList()
 			utils.EmitFooterHint("enter download • esc back")
 			return m, nil
 
-		default: // PhaseFailed
+		default:
 			m.phase = utils.PhaseFailed
 			m.err = msg.Err
 			m.restoreList()
@@ -315,7 +308,7 @@ func (m SelectedInstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case progressDrainDoneMsg:
-		// Pipeline finished; stop listening for progress events.
+
 		return m, nil
 	}
 
@@ -331,7 +324,6 @@ func (m SelectedInstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, m.versions.Update(msg))
 	}
 
-	// Drive the progress bar animation frames.
 	var progressCmd tea.Cmd
 	m.progress, progressCmd = m.progress.Update(msg)
 	cmds = append(cmds, progressCmd)
@@ -352,8 +344,6 @@ func (m *SelectedInstalledModel) setItemsFromEntries() {
 	}
 }
 
-// restoreList brings back the full version list after a cancelled or failed
-// download attempt.
 func (m *SelectedInstalledModel) restoreList() {
 	m.entries = buildVersionEntries(m.language, m.currentVersion, m.releases)
 	m.setItemsFromEntries()
@@ -369,20 +359,14 @@ func (m SelectedInstalledModel) busy() bool {
 	return false
 }
 
-// Busy reports whether a download/install pipeline is currently running.
 func (m SelectedInstalledModel) Busy() bool { return m.busy() }
 
-// Cancel aborts an in-flight pipeline, if any. Safe to call when idle.
 func (m SelectedInstalledModel) Cancel() {
 	if m.cancel != nil {
 		m.cancel()
 	}
 }
 
-// startDownload launches the full pipeline for the selected version:
-// download (with live progress) → SHA256 verify → extract → swap. It mutates
-// the model in place and returns the initial command batch; progress events
-// keep arriving as messages afterwards.
 func (m *SelectedInstalledModel) startDownload(entry versionEntry) tea.Cmd {
 	version := entry.release.Version
 	filename := entry.file.Filename
@@ -400,8 +384,6 @@ func (m *SelectedInstalledModel) startDownload(entry versionEntry) tea.Cmd {
 	m.lastPercent = 0
 	m.progress.SetPercent(0)
 
-	// While downloading, the list is reduced to the version being
-	// installed so the focus stays on it.
 	m.entries = []versionEntry{entry}
 	m.setItemsFromEntries()
 
@@ -441,9 +423,12 @@ func (m *SelectedInstalledModel) startDownload(entry versionEntry) tea.Cmd {
 
 		var installDir string
 		var instErr error
-		if isClang(m.language) {
+		switch {
+		case isClang(m.language):
 			installDir, instErr = utils.InstallClangArchive(ctx, archivePath, filename, report)
-		} else {
+		case isPython(m.language):
+			installDir, instErr = utils.InstallPythonArchive(ctx, archivePath, filename, report)
+		default:
 			installDir, instErr = utils.InstallGoArchive(ctx, archivePath, filename, report)
 		}
 		if instErr != nil {
@@ -453,7 +438,6 @@ func (m *SelectedInstalledModel) startDownload(entry versionEntry) tea.Cmd {
 			return utils.DownloadResultMsg{Seq: seq, Phase: utils.PhaseFailed, Version: version, Filename: filename, Err: instErr}
 		}
 
-		// The archive is installed; the compressed file is no longer needed.
 		os.Remove(filepath.Join(utils.SwapFilesDir(), filename))
 
 		return utils.DownloadResultMsg{
@@ -469,8 +453,6 @@ func (m *SelectedInstalledModel) startDownload(entry versionEntry) tea.Cmd {
 	return tea.Batch(downloadCmd, m.nextProgress())
 }
 
-// nextProgress returns a command that waits for the next progress event (or
-// pipeline shutdown). Re-armed after every event is processed.
 func (m *SelectedInstalledModel) nextProgress() tea.Cmd {
 	if m.progressCh == nil {
 		return nil
@@ -488,8 +470,6 @@ func (m *SelectedInstalledModel) nextProgress() tea.Cmd {
 	}
 }
 
-// buildVersionEntries turns the fetched releases into list entries filtered
-// to the current machine, with the currently installed version first.
 func buildVersionEntries(lang utils.Language, currentOverride string, releases []api.Release) []versionEntry {
 	current := currentOverride
 	if current == "" {
@@ -498,6 +478,8 @@ func buildVersionEntries(lang utils.Language, currentOverride string, releases [
 			current = extractGoVersion(lang.Version)
 		case isClang(lang):
 			current = extractClangVersion(lang.Version)
+		case isPython(lang):
+			current = extractPythonVersion(lang.Version)
 		}
 	}
 
@@ -507,7 +489,7 @@ func buildVersionEntries(lang utils.Language, currentOverride string, releases [
 	for _, r := range releases {
 		file, ok := r.FileForMachine()
 		if !ok {
-			continue // no download for this OS/arch
+			continue
 		}
 
 		e := versionEntry{
@@ -522,8 +504,6 @@ func buildVersionEntries(lang utils.Language, currentOverride string, releases [
 		entries = append(entries, e)
 	}
 
-	// The installed version is not in the archive (e.g. a custom/devel
-	// build): still show it as the first entry, without download info.
 	if current != "" && currentIdx < 0 {
 		entries = append([]versionEntry{{
 			title:   current,
@@ -533,7 +513,6 @@ func buildVersionEntries(lang utils.Language, currentOverride string, releases [
 		currentIdx = 0
 	}
 
-	// Move the current entry to the top of the list.
 	if currentIdx > 0 {
 		e := entries[currentIdx]
 		copy(entries[1:currentIdx+1], entries[0:currentIdx])
@@ -543,8 +522,6 @@ func buildVersionEntries(lang utils.Language, currentOverride string, releases [
 	return entries
 }
 
-// extractGoVersion pulls the "goX.Y.Z" token out of a `go version` output
-// such as "go version go1.25.2 windows/amd64".
 func extractGoVersion(versionOutput string) string {
 	for _, field := range strings.Fields(versionOutput) {
 		if strings.HasPrefix(field, "go1.") {
@@ -554,10 +531,15 @@ func extractGoVersion(versionOutput string) string {
 	return ""
 }
 
-// extractClangVersion pulls the "X.Y.Z" version token out of a `clang
-// --version` output such as "clang version 20.1.8" or
-// "Ubuntu clang version 16.0.6".
 func extractClangVersion(versionOutput string) string {
+	return extractDottedVersion(versionOutput)
+}
+
+func extractPythonVersion(versionOutput string) string {
+	return extractDottedVersion(versionOutput)
+}
+
+func extractDottedVersion(versionOutput string) string {
 	for _, field := range strings.Fields(versionOutput) {
 		if looksLikeVersion(field) {
 			return field
@@ -566,8 +548,6 @@ func extractClangVersion(versionOutput string) string {
 	return ""
 }
 
-// looksLikeVersion reports whether s is a dotted numeric version such as
-// "20.1.8" or "1.25.2".
 func looksLikeVersion(s string) bool {
 	parts := strings.Split(s, ".")
 	if len(parts) < 2 {
@@ -596,8 +576,13 @@ func entryDescription(e versionEntry) string {
 		stability = "stable"
 	}
 
-	return fmt.Sprintf("%s • %s/%s • %s • %.2f MB",
-		stability, e.file.OS, e.file.Arch, e.file.Filename, e.file.SizeMB())
+	size := fmt.Sprintf("%.2f MB", e.file.SizeMB())
+	if e.file.Size <= 0 {
+		size = "size n/a"
+	}
+
+	return fmt.Sprintf("%s • %s/%s • %s • %s",
+		stability, e.file.OS, e.file.Arch, e.file.Filename, size)
 }
 
 func (m SelectedInstalledModel) selectedEntry() (versionEntry, bool) {
@@ -676,8 +661,12 @@ func (m SelectedInstalledModel) detailView() string {
 	b.WriteString(label.Render(" File:     ") + value.Render(entry.file.Filename) + "\n")
 	b.WriteString(label.Render(" Target:   ") +
 		value.Render(fmt.Sprintf("%s/%s", entry.file.OS, entry.file.Arch)) + "\n")
+	size := fmt.Sprintf("%.2f MB", entry.file.SizeMB())
+	if entry.file.Size <= 0 {
+		size = "size n/a"
+	}
 	b.WriteString(label.Render(" Size:     ") +
-		value.Render(fmt.Sprintf("%.2f MB", entry.file.SizeMB())) + "\n")
+		value.Render(size) + "\n")
 	b.WriteString(label.Render(" SHA256:   ") + value.Render(sha) + "\n")
 	b.WriteString(label.Render(" URL:      ") + link)
 
@@ -720,7 +709,6 @@ func (m SelectedInstalledModel) buildHeader() string {
 		Foreground(lipgloss.Color("#00ff00")).
 		Render(fmt.Sprintf(" [%s]", m.language.Name))
 
-	// Right side: animated download progress + status while active.
 	var rightBlock string
 	if m.busy() || m.phase == utils.PhaseDone {
 		bar := m.progress.Bar()
@@ -787,8 +775,6 @@ func (m SelectedInstalledModel) View() tea.View {
 		content.WriteString(hint)
 		content.WriteString("\n")
 
-		// Keep the version list visible under the success banner so the
-		// screen never becomes a dead end; esc restores the normal title.
 		if m.versions != nil {
 			content.WriteString(m.versions.View())
 		}
@@ -829,7 +815,7 @@ func (m SelectedInstalledModel) View() tea.View {
 		content.WriteString("\n")
 
 	default:
-		// Non-Go languages (or Go with no data yet): plain info card.
+
 		path := m.language.Path
 		version := m.language.Version
 		status := "Installed"

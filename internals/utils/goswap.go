@@ -18,11 +18,8 @@ import (
 	"github.com/ulikunitz/xz"
 )
 
-// swapFilesDir is where downloaded archives land.
 const swapFilesDir = "swap_files"
 
-// SwapFilesDir returns the directory where downloaded archives are stored,
-// next to the OpenVM executable.
 func SwapFilesDir() string {
 	exe, err := os.Executable()
 	if err != nil {
@@ -31,15 +28,8 @@ func SwapFilesDir() string {
 	return filepath.Join(filepath.Dir(exe), swapFilesDir)
 }
 
-// progressFunc receives pipeline progress updates; it must not block for long.
 type progressFunc func(DownloadProgressMsg)
 
-// InstallGoArchive runs the second half of the pipeline: extract the already
-// downloaded and checksum-verified archive, then swap it in as the active Go
-// toolchain. On Windows the whole extracted tree is renamed into place (the
-// go binary is locked while running); on unix only bin/go is replaced, which
-// is a cheap atomic rename. The previous installation is backed up and
-// restored automatically if the swap fails.
 func InstallGoArchive(ctx context.Context, archivePath, filename string, report progressFunc) (installDir string, err error) {
 	if report == nil {
 		report = func(DownloadProgressMsg) {}
@@ -59,7 +49,6 @@ func InstallGoArchive(ctx context.Context, archivePath, filename string, report 
 		return "", fmt.Errorf("extracting archive: %w", err)
 	}
 
-	// goX.Y.Z.os-arch/... → .../go/...
 	srcRoot := extractDir
 	if entries, _ := os.ReadDir(extractDir); len(entries) == 1 && entries[0].IsDir() {
 		srcRoot = filepath.Join(extractDir, entries[0].Name())
@@ -84,8 +73,6 @@ func InstallGoArchive(ctx context.Context, archivePath, filename string, report 
 	return installDir, nil
 }
 
-// extractArchive unpacks .zip (Windows builds) and the .tar.[gz|xz|zst]
-// archives used for unix builds.
 func extractArchive(ctx context.Context, archivePath, destDir string) error {
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return err
@@ -199,8 +186,6 @@ func extractTarZst(ctx context.Context, archivePath, destDir string) error {
 	return extractTarStream(ctx, zr, destDir)
 }
 
-// extractTarStream unpacks a tar file read from r into destDir. It is the
-// shared implementation behind the .tar.gz / .tar.xz / .tar.zst extractors.
 func extractTarStream(ctx context.Context, r io.Reader, destDir string) error {
 	tr := tar.NewReader(r)
 
@@ -252,9 +237,6 @@ func extractTarStream(ctx context.Context, r io.Reader, destDir string) error {
 	}
 }
 
-// swapWindows renames the entire toolchain tree into place. The running go
-// binary locks its own install dir, so OpenVM's copy lives elsewhere; the
-// old tree is moved aside first and restored if anything fails.
 func swapWindows(srcRoot string) (string, error) {
 	installDir := filepath.Join(SwapFilesDir(), "go")
 	backupDir := filepath.Join(SwapFilesDir(), "go.bak")
@@ -268,7 +250,7 @@ func swapWindows(srcRoot string) (string, error) {
 	}
 
 	if err := os.Rename(srcRoot, installDir); err != nil {
-		// Rollback.
+
 		if _, statErr := os.Stat(backupDir); statErr == nil {
 			_ = os.Rename(backupDir, installDir)
 		}
@@ -276,7 +258,7 @@ func swapWindows(srcRoot string) (string, error) {
 	}
 
 	if err := ensureWindowsPath(filepath.Join(installDir, "bin")); err != nil {
-		// Rollback.
+
 		os.RemoveAll(installDir)
 		if _, statErr := os.Stat(backupDir); statErr == nil {
 			_ = os.Rename(backupDir, installDir)
@@ -288,10 +270,6 @@ func swapWindows(srcRoot string) (string, error) {
 	return installDir, nil
 }
 
-// swapUnix swaps the entire toolchain tree into place, mirroring the
-// Windows approach: a new go binary must run against its matching stdlib,
-// so replacing only bin/go would mix versions. The old tree is renamed
-// aside first and restored if anything fails.
 func swapUnix(srcRoot string) (string, error) {
 	installDir := currentGoRoot()
 	if installDir == "" {
@@ -308,7 +286,7 @@ func swapUnix(srcRoot string) (string, error) {
 	}
 
 	if err := os.Rename(srcRoot, installDir); err != nil {
-		// Rollback.
+
 		if _, statErr := os.Stat(backupDir); statErr == nil {
 			_ = os.Rename(backupDir, installDir)
 		}
@@ -319,9 +297,6 @@ func swapUnix(srcRoot string) (string, error) {
 	return installDir, nil
 }
 
-// currentGoRoot returns the directory of the go binary currently on PATH, if
-// any. Extracting it from `go env GOROOT` would report the GOROOT baked into
-// the binary, which is not necessarily where the binary lives.
 func currentGoRoot() string {
 	path, err := exec.LookPath("go")
 	if err != nil {
@@ -331,8 +306,7 @@ func currentGoRoot() string {
 }
 
 func ensureWindowsPath(dir string) error {
-	// Prepend rather than append so the managed toolchain wins over any
-	// pre-existing Go entry already on the user's PATH.
+
 	script := fmt.Sprintf(
 		`$p=[Environment]::GetEnvironmentVariable('Path','User'); if($p -notlike '*%s*'){[Environment]::SetEnvironmentVariable('Path', '%s;'+$p, 'User')}`,
 		dir, dir,

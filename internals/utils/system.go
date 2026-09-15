@@ -40,7 +40,6 @@ type Language struct {
 	Version string
 }
 
-
 func findBinaries(names []string, binaries map[string][]string) []Language {
 	if GetMachineType() != "Linux" {
 		return []Language{}
@@ -91,7 +90,6 @@ func GetTools() []Language {
 	)
 }
 
-
 func GetAvailable() []Language {
 	return append(GetLanguages(), GetTools()...)
 }
@@ -116,7 +114,6 @@ func getVersion(binary string) string {
 	if err != nil {
 		return "unknown"
 	}
-
 
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	if len(lines) > 0 {

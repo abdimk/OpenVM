@@ -7,9 +7,6 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// InfoModel is a simple reusable screen that renders a title and a body,
-// padded to fill the available height so the shared footer stays pinned
-// to the bottom of the screen.
 type InfoModel struct {
 	title  string
 	body   string

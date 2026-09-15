@@ -45,13 +45,10 @@ func NewPager(title, content string) Pager {
 	}
 }
 
-// HideHeader disables the pager's title bar.
 func (p *Pager) HideHeader() {
 	p.showHeader = false
 }
 
-// HideFooter disables the pager's own scroll-percentage footer so the view
-// relies on the shared global footer instead.
 func (p *Pager) HideFooter() {
 	p.showFooter = false
 }

@@ -3,7 +3,7 @@ package ui
 import (
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2" 
+	"charm.land/lipgloss/v2"
 )
 
 type Item struct {
@@ -40,7 +40,6 @@ func New(
 
 	delegate := list.NewDefaultDelegate()
 
-
 	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.
 		Foreground(lipgloss.Color("#743054")).
 		BorderLeftForeground(lipgloss.Color("#743054"))
@@ -49,7 +48,6 @@ func New(
 		Foreground(lipgloss.Color("#743054")).
 		BorderLeftForeground(lipgloss.Color("#743054"))
 
-
 	delegate.Styles.NormalTitle = delegate.Styles.NormalTitle.
 		Foreground(lipgloss.Color("#FFFDF5"))
 	delegate.Styles.NormalDesc = delegate.Styles.NormalDesc.
@@ -57,7 +55,7 @@ func New(
 
 	l := list.New(
 		listItems,
-		delegate, 
+		delegate,
 		width,
 		height,
 	)
@@ -103,7 +101,7 @@ func (m *ListModel) SetShowTitle(show bool) {
 	m.list.SetShowTitle(show)
 }
 
-func(m *ListModel) SetTitleStyle(style lipgloss.Style){
+func (m *ListModel) SetTitleStyle(style lipgloss.Style) {
 	m.list.Styles.Title = style
 	m.list.Styles.TitleBar = style.UnsetBorderStyle()
 }

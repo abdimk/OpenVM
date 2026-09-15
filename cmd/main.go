@@ -103,9 +103,6 @@ func (m model) header() string {
 	return style.Render("OpenVM")
 }
 
-
-// description is the shared tagline rendered under the header on every
-// screen except Version (which shows the logo banner instead).
 func (m model) description() string {
 	if m.width <= 0 {
 		return ""
@@ -128,7 +125,6 @@ func (m model) buildListTitle() string {
 		return "Available Commands"
 	}
 
-	// Left: bold, white text, default background, slightly indented
 	leftBlock := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("#ffffff")).
@@ -138,7 +134,6 @@ func (m model) buildListTitle() string {
 
 	rightBlock := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#ffffff")).
-		// Border(lipgloss.RoundedBorder()).
 		PaddingRight(2).
 		PaddingLeft(1).
 		Render(fmt.Sprintf("Machine: [%s]", utils.GetMachineType()))
@@ -165,9 +160,6 @@ func (m *model) updateLayout() {
 	headerHeight := lipgloss.Height(m.header())
 	descriptionHeight := lipgloss.Height(m.description())
 
-	// The Version screen shows the logo banner inside the pager content
-	// instead of the shared text description, so zero-out the description
-	// height so all remaining space goes to the pager.
 	if m.screen == Version {
 		descriptionHeight = 0
 	}
@@ -236,12 +228,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if _, ok := msg.(utils.BackMsg); ok {
 		if m.screen == SelectedInstalledScreen {
-			// Leaving the screen: cancel an in-flight download and clear the
-			// transient footer hint.
+
 			m.selectedInstalled.Cancel()
 			utils.ClearFooterHint()
-			// Return to whichever screen the selection was made from
-			// (Installed list or Install list).
+
 			back := m.selectedFrom
 			if back == MainMenuScreen || back == SelectedInstalledScreen {
 				back = InstalledScreen
@@ -512,8 +502,6 @@ func (m model) View() tea.View {
 		screenContent = "Unknown Screen"
 	}
 
-	// The Version screen carries its own logo banner, so the shared text
-	// description is skipped there to avoid stacking two big headers.
 	topBlock := lipgloss.JoinVertical(
 		lipgloss.Left,
 		m.header(),
@@ -532,7 +520,6 @@ func (m model) View() tea.View {
 		screenContent,
 	)
 
-	// Calculate exactly how much space is left before the footer.
 	spacerHeight := m.height - lipgloss.Height(top) - lipgloss.Height(footer)
 
 	if spacerHeight < 0 {

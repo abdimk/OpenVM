@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func InstallClangArchive(ctx context.Context, archivePath, filename string, report progressFunc) (installDir string, err error) {
+func InstallPythonArchive(ctx context.Context, archivePath, filename string, report progressFunc) (installDir string, err error) {
 	if report == nil {
 		report = func(DownloadProgressMsg) {}
 	}
@@ -32,15 +32,15 @@ func InstallClangArchive(ctx context.Context, archivePath, filename string, repo
 	if entries, _ := os.ReadDir(extractDir); len(entries) == 1 && entries[0].IsDir() {
 		srcRoot = filepath.Join(extractDir, entries[0].Name())
 	}
-	if _, statErr := os.Stat(filepath.Join(srcRoot, "bin")); statErr != nil {
-		err = fmt.Errorf("archive layout unexpected: no bin/ directory found in %s", srcRoot)
+	if _, statErr := os.Stat(filepath.Join(srcRoot, "python.exe")); statErr != nil {
+		err = fmt.Errorf("archive layout unexpected: no python.exe found in %s", srcRoot)
 		return "", err
 	}
 
 	report(DownloadProgressMsg{Phase: PhaseSwapping, File: filename})
 
-	installDir = filepath.Join(SwapFilesDir(), "llvm")
-	backupDir := filepath.Join(SwapFilesDir(), "llvm.bak")
+	installDir = filepath.Join(SwapFilesDir(), "python")
+	backupDir := filepath.Join(SwapFilesDir(), "python.bak")
 
 	os.RemoveAll(backupDir)
 
@@ -59,7 +59,7 @@ func InstallClangArchive(ctx context.Context, archivePath, filename string, repo
 	}
 
 	if runtime.GOOS == "windows" {
-		if err = ensureWindowsPath(filepath.Join(installDir, "bin")); err != nil {
+		if err = ensureWindowsPath(installDir); err != nil {
 
 			os.RemoveAll(installDir)
 			if _, statErr := os.Stat(backupDir); statErr == nil {
