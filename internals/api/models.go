@@ -31,6 +31,8 @@ type Release struct {
 	Version string `json:"version"`
 	Stable  bool   `json:"stable"`
 	Files   []File `json:"files"`
+	Date    string `json:"date,omitempty"`
+	LTS     string `json:"lts,omitempty"`
 }
 
 func MachineOS() string {

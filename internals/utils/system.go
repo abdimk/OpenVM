@@ -3,6 +3,8 @@ package utils
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -22,7 +24,7 @@ const (
 
 var languageBinaries = map[string][]string{
 	Go:     {"go"},
-	Python: {"python3", "python"},
+	Python: pythonCandidates(),
 	Node:   {"node"},
 	Rust:   {"rustc"},
 	Gpp:    {"g++", "clang++"},
@@ -40,11 +42,49 @@ type Language struct {
 	Version string
 }
 
-func findBinaries(names []string, binaries map[string][]string) []Language {
-	if GetMachineType() != "Linux" {
-		return []Language{}
+func pythonCandidates() []string {
+	if runtime.GOOS != "windows" {
+		return []string{"python3", "python"}
 	}
+	var candidates []string
+	if p := windowsPythonOnPath(); p != "" {
+		candidates = append(candidates, p)
+	}
+	if p := windowsStorePython(); p != "" {
+		candidates = append(candidates, p)
+	}
+	return append(candidates, "py")
+}
 
+func windowsPythonOnPath() string {
+	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
+		if dir == "" {
+			continue
+		}
+		p := filepath.Join(dir, "python.exe")
+		info, err := os.Stat(p)
+		if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
+			continue
+		}
+		return p
+	}
+	return ""
+}
+
+func windowsStorePython() string {
+	localAppData := os.Getenv("LOCALAPPDATA")
+	if localAppData == "" {
+		return ""
+	}
+	p := filepath.Join(localAppData, "Microsoft", "WindowsApps", "python.exe")
+	info, err := os.Stat(p)
+	if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
+		return ""
+	}
+	return p
+}
+
+func findBinaries(names []string, binaries map[string][]string) []Language {
 	if os.Getenv("PATH") == "" {
 		return []Language{}
 	}
@@ -100,7 +140,7 @@ func getVersion(binary string) string {
 	switch binary {
 	case "go", "rustc":
 		args = []string{"version"}
-	case "python3", "python":
+	case "python3", "python", "python.exe", "py":
 		args = []string{"--version"}
 	case "node":
 		args = []string{"--version"}

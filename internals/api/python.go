@@ -10,7 +10,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 )
 
 const (
@@ -19,11 +18,11 @@ const (
 	pythonFTPBase = "https://www.python.org/ftp/python"
 
 	pythonMinMinor = 11
-
-	pythonManifestWorkers = 6
 )
 
 var pythonFinalVersionRe = regexp.MustCompile(`^\d+\.\d+\.\d+( final)?$`)
+
+var pythonFTPDirRe = regexp.MustCompile(`^(\d+\.\d+\.\d+)/?$`)
 
 type pepsStage struct {
 	Stage string `json:"stage"`
@@ -46,87 +45,107 @@ type pythonPackageHash struct {
 	SHA256 string `json:"sha256"`
 }
 
-func FetchPythonReleases() ([]Release, error) {
-	versions, err := fetchPythonVersions()
-	if err != nil {
-		return nil, err
-	}
-
-	slots := make([]*Release, len(versions))
-	sem := make(chan struct{}, pythonManifestWorkers)
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-
-	for i, version := range versions {
-		version := version
-		wg.Add(1)
-		go func(slot int) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			file, ok := pythonArtifactForMachine(version, runtime.GOOS, runtime.GOARCH)
-			if !ok {
-				return
-			}
-			mu.Lock()
-			slots[slot] = &Release{
-				Version: version,
-				Stable:  true,
-				Files:   []File{file},
-			}
-			mu.Unlock()
-		}(i)
-	}
-	wg.Wait()
-
-	out := make([]Release, 0, len(versions))
-	for _, r := range slots {
-		if r != nil {
-			out = append(out, *r)
-		}
-	}
-	return out, nil
+type PythonReleaseInfo struct {
+	Version string
+	Date    string
 }
 
-func fetchPythonVersions() ([]string, error) {
-	url := pepsReleasesURL
+func FetchPythonVersions() ([]PythonReleaseInfo, error) {
+	return fetchPythonVersions()
+}
 
+func fetchPythonVersions() ([]PythonReleaseInfo, error) {
+	infos, pepsErr := fetchPythonVersionsFromPeps()
+	if pepsErr == nil && len(infos) > 0 {
+		return infos, nil
+	}
+
+	versions, ftpErr := fetchPythonVersionsFromFTP()
+	if ftpErr != nil {
+		return nil, fmt.Errorf("fetching Python versions: peps: %v; ftp: %v", pepsErr, ftpErr)
+	}
+
+	infos = make([]PythonReleaseInfo, 0, len(versions))
+	for _, v := range versions {
+		infos = append(infos, PythonReleaseInfo{Version: v})
+	}
+	return infos, nil
+}
+
+func fetchPythonVersionsFromPeps() ([]PythonReleaseInfo, error) {
 	client := &http.Client{Timeout: requestHTTPTimeout}
-	resp, err := client.Get(url)
+	resp, err := client.Get(pepsReleasesURL)
 	if err != nil {
-		return nil, fmt.Errorf("fetching Python releases: %w", err)
+		return nil, fmt.Errorf("fetching releases: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("fetching Python releases: unexpected status %s", resp.Status)
+		return nil, fmt.Errorf("unexpected status %s", resp.Status)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("reading Python releases response: %w", err)
+		return nil, fmt.Errorf("reading response: %w", err)
 	}
 
 	var doc map[string]json.RawMessage
 	if err := json.Unmarshal(body, &doc); err != nil {
-		return nil, fmt.Errorf("parsing Python releases response: %w", err)
+		return nil, fmt.Errorf("parsing response: %w", err)
 	}
 
 	seriesRaw, ok := doc["releases"]
 	if !ok {
-		return nil, fmt.Errorf("parsing Python releases response: missing \"releases\" section")
+		return nil, fmt.Errorf("missing \"releases\" section")
 	}
 	var series map[string]json.RawMessage
 	if err := json.Unmarshal(seriesRaw, &series); err != nil {
-		return nil, fmt.Errorf("parsing Python releases response: %w", err)
+		return nil, fmt.Errorf("parsing releases: %w", err)
 	}
 
-	return pythonVersionsFromSeries(series), nil
+	return pythonReleaseInfosFromSeries(series), nil
 }
 
-func pythonVersionsFromSeries(series map[string]json.RawMessage) []string {
+func fetchPythonVersionsFromFTP() ([]string, error) {
+	url := pythonFTPBase + "/"
+	client := &http.Client{Timeout: requestHTTPTimeout}
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("fetching FTP index: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status %s", resp.Status)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading FTP index: %w", err)
+	}
+
 	seen := make(map[string]bool)
+	for _, m := range pythonHrefRe.FindAllStringSubmatch(string(body), -1) {
+		if sub := pythonFTPDirRe.FindStringSubmatch(m[1]); sub != nil {
+			seen[sub[1]] = true
+		}
+	}
+
+	versions := make([]string, 0, len(seen))
+	for v := range seen {
+		if pythonSeriesSupported(v) {
+			versions = append(versions, v)
+		}
+	}
+
+	sort.Slice(versions, func(i, j int) bool {
+		return compareVersionsNonEmpty(versions[i], versions[j]) > 0
+	})
+	return versions, nil
+}
+
+func pythonReleaseInfosFromSeries(series map[string]json.RawMessage) []PythonReleaseInfo {
+	seen := make(map[string]pepsStage)
 	for _, raw := range series {
 		var stages []pepsStage
 		if err := json.Unmarshal(raw, &stages); err != nil {
@@ -137,23 +156,25 @@ func pythonVersionsFromSeries(series map[string]json.RawMessage) []string {
 				continue
 			}
 			version := strings.TrimSuffix(s.Stage, " final")
-			seen[version] = true
+			if prev, ok := seen[version]; !ok || s.Date > prev.Date {
+				seen[version] = s
+			}
 		}
 	}
 
-	versions := make([]string, 0, len(seen))
-	for v := range seen {
+	infos := make([]PythonReleaseInfo, 0, len(seen))
+	for v, s := range seen {
 		if !pythonSeriesSupported(v) {
 			continue
 		}
-		versions = append(versions, v)
+		infos = append(infos, PythonReleaseInfo{Version: v, Date: s.Date})
 	}
 
-	sort.Slice(versions, func(i, j int) bool {
-		return compareVersionsNonEmpty(versions[i], versions[j]) > 0
+	sort.Slice(infos, func(i, j int) bool {
+		return compareVersionsNonEmpty(infos[i].Version, infos[j].Version) > 0
 	})
 
-	return versions
+	return infos
 }
 
 func pythonSeriesSupported(version string) bool {
@@ -194,45 +215,29 @@ func compareVersionsNonEmpty(a, b string) int {
 	return 0
 }
 
+func FetchPythonArtifact(version string) (File, error) {
+	file, ok := pythonArtifactForMachine(version, runtime.GOOS, runtime.GOARCH)
+	if !ok {
+		return File{}, fmt.Errorf("no downloadable Python %s artifact for %s/%s", version, runtime.GOOS, runtime.GOARCH)
+	}
+	return file, nil
+}
+
 func pythonArtifactForMachine(version, targetOS, targetArch string) (File, bool) {
 	switch targetOS {
 	case "windows":
 		return pythonWindowsArtifact(version, targetArch)
 	default:
-
 		return File{}, false
 	}
 }
 
 func pythonWindowsArtifact(version, targetArch string) (File, bool) {
-	if manifest, err := fetchPythonWindowsManifest(version); err == nil {
-		if file, ok := matchWindowsManifest(manifest, version, targetArch); ok {
-			return file, true
-		}
-	}
-
-	files, err := fetchPythonDirIndex(version)
+	manifest, err := fetchPythonWindowsManifest(version)
 	if err != nil {
 		return File{}, false
 	}
-	archToken := pythonArchToken(targetArch)
-	if archToken == "" {
-		return File{}, false
-	}
-	filename := fmt.Sprintf("python-%s-%s.zip", version, archToken)
-	for _, name := range files {
-		if name == filename {
-			return File{
-				Filename: filename,
-				OS:       "windows",
-				Arch:     targetArch,
-				Version:  version,
-				Kind:     "archive",
-				URL:      fmt.Sprintf("%s/%s/%s", pythonFTPBase, version, name),
-			}, true
-		}
-	}
-	return File{}, false
+	return matchWindowsManifest(manifest, version, targetArch)
 }
 
 func matchWindowsManifest(manifest *pythonWindowsManifest, version, targetArch string) (File, bool) {
@@ -297,32 +302,3 @@ func fetchPythonWindowsManifest(version string) (*pythonWindowsManifest, error) 
 }
 
 var pythonHrefRe = regexp.MustCompile(`href="([^"]+)"`)
-
-func fetchPythonDirIndex(version string) ([]string, error) {
-	url := fmt.Sprintf("%s/%s/", pythonFTPBase, version)
-	client := &http.Client{Timeout: requestHTTPTimeout}
-	resp, err := client.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status %s", resp.Status)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	var files []string
-	for _, m := range pythonHrefRe.FindAllStringSubmatch(string(body), -1) {
-		name := m[1]
-		if name == "../" || strings.HasPrefix(name, "/") || strings.Contains(name, "?") {
-			continue
-		}
-		files = append(files, name)
-	}
-	return files, nil
-}

@@ -25,12 +25,20 @@ type VersionsFetchedMsg struct {
 	Err      error
 }
 
+type ArtifactResolvedMsg struct {
+	Entry versionEntry
+	File  api.File
+	Err   error
+}
+
 type versionEntry struct {
 	title   string
 	release api.Release
 	file    api.File
 	current bool
 }
+
+type artifactFn func(version string) (api.File, error)
 
 type SelectedInstalledModel struct {
 	language utils.Language
@@ -42,10 +50,14 @@ type SelectedInstalledModel struct {
 	releases []api.Release
 
 	loading bool
-	err     error
+	err      error
+
+	resolving bool
 
 	spinner  ui.Spinner
 	progress ui.Progress
+
+	resolveArtifact artifactFn
 
 	phase          utils.DownloadPhase
 	activeVersion  string
@@ -62,10 +74,54 @@ type SelectedInstalledModel struct {
 func NewSelectedInstalledModel(lang utils.Language) SelectedInstalledModel {
 	m := SelectedInstalledModel{
 		language: lang,
-		loading:  isGo(lang) || isClang(lang) || isPython(lang),
+		loading:  isGo(lang) || isClang(lang) || isPython(lang) || isNode(lang),
 		spinner:  ui.SpinnerModel("Fetching available versions..."),
 		progress: ui.NewProgress(),
 		phase:    utils.PhaseIdle,
+	}
+	switch {
+	case isGo(m.language):
+		m.resolveArtifact = func(version string) (api.File, error) {
+			releases, err := api.ReleasesForMachine()
+			if err != nil {
+				return api.File{}, err
+			}
+			for _, r := range releases {
+				if r.Version != version {
+					continue
+				}
+				if file, ok := r.FileForMachine(); ok {
+					return file, nil
+				}
+				break
+			}
+			return api.File{}, fmt.Errorf("no downloadable artifact for Go %s", version)
+		}
+	case isClang(m.language):
+		m.resolveArtifact = func(version string) (api.File, error) {
+			releases, err := api.FetchLLVMReleases()
+			if err != nil {
+				return api.File{}, err
+			}
+			for _, r := range releases {
+				if r.Version != version {
+					continue
+				}
+				if file, ok := r.FileForMachine(); ok {
+					return file, nil
+				}
+				break
+			}
+			return api.File{}, fmt.Errorf("no downloadable artifact for LLVM %s", version)
+		}
+	case isPython(m.language):
+		m.resolveArtifact = func(version string) (api.File, error) {
+			return api.FetchPythonArtifact(version)
+		}
+	case isNode(m.language):
+		m.resolveArtifact = func(version string) (api.File, error) {
+			return api.FetchNodeArtifact(version)
+		}
 	}
 	m.versions = ui.New("", nil, 80, 20)
 	return m
@@ -84,6 +140,10 @@ func isPython(lang utils.Language) bool {
 	return strings.EqualFold(strings.TrimSpace(lang.Name), utils.Python)
 }
 
+func isNode(lang utils.Language) bool {
+	return strings.EqualFold(strings.TrimSpace(lang.Name), utils.Node)
+}
+
 func (m SelectedInstalledModel) languageLabel() string {
 	if isClang(m.language) {
 		return "Clang"
@@ -94,29 +154,18 @@ func (m SelectedInstalledModel) languageLabel() string {
 	if isPython(m.language) {
 		return "Python"
 	}
+	if isNode(m.language) {
+		return "Node"
+	}
 	return m.language.Name
 }
 
 func (m SelectedInstalledModel) Init() tea.Cmd {
-	switch {
-	case isGo(m.language):
-		return tea.Batch(
-			m.spinner.Init(),
-			fetchGoVersionsCmd(),
-		)
-	case isClang(m.language):
-		return tea.Batch(
-			m.spinner.Init(),
-			fetchClangVersionsCmd(),
-		)
-	case isPython(m.language):
-		return tea.Batch(
-			m.spinner.Init(),
-			fetchPythonVersionsCmd(),
-		)
-	default:
+	cmd := m.fetchVersionsCmd()
+	if cmd == nil {
 		return nil
 	}
+	return tea.Batch(m.spinner.Init(), cmd)
 }
 
 func fetchGoVersionsCmd() tea.Cmd {
@@ -133,9 +182,39 @@ func fetchClangVersionsCmd() tea.Cmd {
 	}
 }
 
+func (m SelectedInstalledModel) fetchVersionsCmd() tea.Cmd {
+	switch {
+	case isGo(m.language):
+		return fetchGoVersionsCmd()
+	case isClang(m.language):
+		return fetchClangVersionsCmd()
+	case isPython(m.language):
+		return fetchPythonVersionsCmd()
+	case isNode(m.language):
+		return fetchNodeVersionsCmd()
+	default:
+		return nil
+	}
+}
+
+func fetchNodeVersionsCmd() tea.Cmd {
+	return func() tea.Msg {
+		infos, err := api.FetchNodeVersions()
+		releases := make([]api.Release, 0, len(infos))
+		for _, info := range infos {
+			releases = append(releases, api.Release{Version: info.Version, Stable: true, Date: info.Date, LTS: info.LTS})
+		}
+		return VersionsFetchedMsg{Releases: releases, Err: err}
+	}
+}
+
 func fetchPythonVersionsCmd() tea.Cmd {
 	return func() tea.Msg {
-		releases, err := api.FetchPythonReleases()
+		infos, err := api.FetchPythonVersions()
+		releases := make([]api.Release, 0, len(infos))
+		for _, info := range infos {
+			releases = append(releases, api.Release{Version: info.Version, Stable: true, Date: info.Date})
+		}
 		return VersionsFetchedMsg{Releases: releases, Err: err}
 	}
 }
@@ -189,6 +268,7 @@ func (m SelectedInstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				utils.ClearFooterHint()
 				return m, nil
 			}
+			m.resolving = false
 			if m.phase == utils.PhaseDone || m.phase == utils.PhaseFailed {
 
 				m.phase = utils.PhaseIdle
@@ -199,6 +279,17 @@ func (m SelectedInstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			return m, func() tea.Msg { return utils.BackMsg{} }
+
+		case "r":
+			if m.busy() || m.resolving || m.loading || m.phase != utils.PhaseIdle {
+				return m, nil
+			}
+			if m.err == nil {
+				return m, nil
+			}
+			m.err = nil
+			m.loading = true
+			return m, tea.Batch(m.spinner.Init(), m.fetchVersionsCmd())
 
 		case "enter":
 			if m.busy() {
@@ -222,12 +313,37 @@ func (m SelectedInstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmd := m.startDownload(entry)
 				return m, cmd
 			}
-			return m, nil
+			if m.resolveArtifact == nil {
+				return m, nil
+			}
+			return m, m.resolveEntryArtifact(entry)
 		}
 
 	case footerHintResetMsg:
 		utils.ClearFooterHint()
 		return m, nil
+
+	case ArtifactResolvedMsg:
+		if !m.resolving {
+			return m, nil
+		}
+		m.resolving = false
+		if msg.Err != nil {
+			utils.EmitFooterHintColored(fmt.Sprintf("%v — esc back", msg.Err), "#ff5555")
+			return m, tea.Tick(4*time.Second, func(time.Time) tea.Msg {
+				return footerHintResetMsg{}
+			})
+		}
+		msg.Entry.file = msg.File
+		for i := range m.entries {
+			if m.entries[i].title == msg.Entry.title {
+				m.entries[i].file = msg.File
+				break
+			}
+		}
+		m.setItemsFromEntries()
+		m.SetSize(m.width, m.height)
+		return m, m.startDownload(msg.Entry)
 
 	case VersionsFetchedMsg:
 		m.loading = false
@@ -331,6 +447,18 @@ func (m SelectedInstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
+func (m *SelectedInstalledModel) resolveEntryArtifact(entry versionEntry) tea.Cmd {
+	m.resolving = true
+	version := entry.title
+	resolve := m.resolveArtifact
+	utils.EmitFooterHint(fmt.Sprintf("resolving %s download...", version))
+
+	return func() tea.Msg {
+		file, err := resolve(version)
+		return ArtifactResolvedMsg{Entry: entry, File: file, Err: err}
+	}
+}
+
 func (m *SelectedInstalledModel) setItemsFromEntries() {
 	items := make([]ui.Item, len(m.entries))
 	for i, e := range m.entries {
@@ -372,6 +500,17 @@ func (m *SelectedInstalledModel) startDownload(entry versionEntry) tea.Cmd {
 	filename := entry.file.Filename
 	url := entry.file.URL
 	if url == "" {
+		if !isGo(m.language) {
+			return func() tea.Msg {
+				return utils.DownloadResultMsg{
+					Seq:      m.seq,
+					Phase:    utils.PhaseFailed,
+					Version:  version,
+					Filename: filename,
+					Err:      fmt.Errorf("no download URL available for %s", filename),
+				}
+			}
+		}
 		url = "https://go.dev/dl/" + filename
 	}
 	sha := entry.file.SHA256
@@ -426,8 +565,10 @@ func (m *SelectedInstalledModel) startDownload(entry versionEntry) tea.Cmd {
 		switch {
 		case isClang(m.language):
 			installDir, instErr = utils.InstallClangArchive(ctx, archivePath, filename, report)
-		case isPython(m.language):
+			case isPython(m.language):
 			installDir, instErr = utils.InstallPythonArchive(ctx, archivePath, filename, report)
+		case isNode(m.language):
+			installDir, instErr = utils.InstallNodeArchive(ctx, archivePath, filename, report)
 		default:
 			installDir, instErr = utils.InstallGoArchive(ctx, archivePath, filename, report)
 		}
@@ -480,6 +621,8 @@ func buildVersionEntries(lang utils.Language, currentOverride string, releases [
 			current = extractClangVersion(lang.Version)
 		case isPython(lang):
 			current = extractPythonVersion(lang.Version)
+		case isNode(lang):
+			current = extractNodeVersion(lang.Version)
 		}
 	}
 
@@ -487,16 +630,13 @@ func buildVersionEntries(lang utils.Language, currentOverride string, releases [
 	currentIdx := -1
 
 	for _, r := range releases {
-		file, ok := r.FileForMachine()
-		if !ok {
-			continue
-		}
-
 		e := versionEntry{
 			title:   r.Version,
 			release: r,
-			file:    file,
 			current: current != "" && r.Version == current,
+		}
+		if file, ok := r.FileForMachine(); ok {
+			e.file = file
 		}
 		if e.current {
 			currentIdx = len(entries)
@@ -539,6 +679,16 @@ func extractPythonVersion(versionOutput string) string {
 	return extractDottedVersion(versionOutput)
 }
 
+func extractNodeVersion(versionOutput string) string {
+	for _, field := range strings.Fields(versionOutput) {
+		bare := strings.TrimPrefix(field, "v")
+		if looksLikeVersion(bare) {
+			return bare
+		}
+	}
+	return ""
+}
+
 func extractDottedVersion(versionOutput string) string {
 	for _, field := range strings.Fields(versionOutput) {
 		if looksLikeVersion(field) {
@@ -568,7 +718,24 @@ func looksLikeVersion(s string) bool {
 
 func entryDescription(e versionEntry) string {
 	if e.file.Filename == "" {
-		return "Currently installed on this machine"
+		if e.current {
+			return "Currently installed on this machine"
+		}
+
+		var parts []string
+		if e.release.Stable {
+			parts = append(parts, "stable")
+		}
+		if e.release.LTS != "" {
+			parts = append(parts, "LTS "+e.release.LTS)
+		}
+		if e.release.Date != "" {
+			parts = append(parts, e.release.Date)
+		}
+		if len(parts) == 0 {
+			parts = append(parts, "archived")
+		}
+		return strings.Join(parts, " • ")
 	}
 
 	stability := "archived"
@@ -630,11 +797,14 @@ func (m SelectedInstalledModel) detailView() string {
 	b.WriteString(label.Render(" Version:  ") + value.Render(title) + "\n")
 
 	if entry.file.Filename == "" {
-		b.WriteString(label.Render(" Path:     ") + value.Render(m.language.Path) + "\n")
+		if entry.current {
+			b.WriteString(label.Render(" Path:     ") + value.Render(m.language.Path) + "\n")
+			b.WriteString(label.Render(" Status:   ") +
+				value.Render("Currently installed on this machine") + "\n")
+			return b.String()
+		}
 		b.WriteString(label.Render(" Status:   ") +
-			value.Render(fmt.Sprintf(
-				"No matching download found for %s/%s",
-				api.MachineOS(), api.MachineArch())) + "\n")
+			value.Render("Press enter to resolve the download for this version") + "\n")
 		return b.String()
 	}
 
@@ -644,8 +814,11 @@ func (m SelectedInstalledModel) detailView() string {
 	}
 
 	url := entry.file.URL
-	if url == "" {
+	if url == "" && isGo(m.language) {
 		url = "https://go.dev/dl/" + entry.file.Filename
+	}
+	if url == "" {
+		return b.String()
 	}
 	link := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#58A6FF")).
@@ -797,6 +970,10 @@ func (m SelectedInstalledModel) View() tea.View {
 		content.WriteString(lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#ff5555")).
 			Render(fmt.Sprintf("Failed to fetch available versions: %v", m.err)))
+		content.WriteString("\n")
+		content.WriteString(lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FFD700")).
+			Render("Check your network connection and press r to retry, esc to go back."))
 		content.WriteString("\n")
 
 	case len(m.entries) > 0:

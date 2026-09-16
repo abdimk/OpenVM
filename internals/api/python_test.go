@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"strings"
 	"testing"
 )
 
@@ -57,15 +56,20 @@ func TestPepsStageParsing(t *testing.T) {
 		t.Fatalf("unmarshal series: %v", err)
 	}
 
-	versions := pythonVersionsFromSeries(series)
+	versions := pythonReleaseInfosFromSeries(series)
 
-	want := []string{"3.14.7", "3.13.12", "3.11.8", "3.11.0"}
+	want := []PythonReleaseInfo{
+		{Version: "3.14.7", Date: "2025-10-07"},
+		{Version: "3.13.12", Date: "2025-09-02"},
+		{Version: "3.11.8", Date: "2024-02-06"},
+		{Version: "3.11.0", Date: "2022-10-24"},
+	}
 	if len(versions) != len(want) {
 		t.Fatalf("versions = %v, want %v", versions, want)
 	}
-	for i, v := range versions {
-		if v != want[i] {
-			t.Errorf("versions[%d] = %q, want %q, (list: %v)", i, v, want[i], versions)
+	for i, w := range want {
+		if versions[i] != w {
+			t.Errorf("versions[%d] = %+v, want %+v", i, versions[i], w)
 		}
 	}
 }
@@ -177,58 +181,31 @@ func TestPythonArtifactForUnsupportedOSReturnsFalse(t *testing.T) {
 	}
 }
 
-func TestFetchPythonDirIndexParsesHrefs(t *testing.T) {
+func TestFetchPythonVersionsFromFTPIndex(t *testing.T) {
 	fixture := `<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
-<html>
- <head><title>Index of /ftp/python/3.14.7</title></head>
- <body>
-<h1>Index of /ftp/python/3.14.7</h1>
-<pre><img src="/icons/compressed.gif" alt="   "> <a href="../">Parent Directory</a>
-<img src="/icons/compressed.gif" alt="   "> <a href="Python-3.14.7.tar.xz">Python-3.14.7.tar.xz</a>                  2025-10-07 15:30  25.5M
-<img src="/icons/compressed.gif" alt="   "> <a href="python-3.14.7-amd64.exe">python-3.14.7-amd64.exe</a>               2025-10-07 15:30  1.4M
-<img src="/icons/compressed.gif" alt="   "> <a href="python-3.14.7-amd64.zip">python-3.14.7-amd64.zip</a>               2025-10-07 15:30  35.0M
-<img src="/icons/compressed.gif" alt="   "> <a href="python-3.14.7-arm64.zip">python-3.14.7-arm64.zip</a>               2025-10-07 15:30  34.8M
-<img src="/icons/compressed.gif" alt="   "> <a href="windows-3.14.7.json">windows-3.14.7.json</a>                 2025-10-07 15:30  3.2K
-<img src="/icons/compressed.gif" alt="   "> <a href="python-3.14.7-macos11.pkg">python-3.14.7-macos11.pkg</a>            2025-10-07 15:30  55.0M
-</pre>
-</body>
-</html>`
+<html><head><title>Index of /ftp/python</title></head><body>
+<h1>Index of /ftp/python</h1>
+<pre><img src="/icons/folder.gif" alt="[DIR]"> <a href="../">Parent Directory</a>
+<img src="/icons/folder.gif" alt="[DIR]"> <a href="3.14.7/">3.14.7/</a>              2025-10-07 15:30    -
+<img src="/icons/folder.gif" alt="[DIR]"> <a href="3.13.9/">3.13.9/</a>              2025-10-14 17:43    -
+<img src="/icons/folder.gif" alt="[DIR]"> <a href="3.12.10/">3.12.10/</a>             2025-04-08 12:00    -
+<img src="/icons/folder.gif" alt="[DIR]"> <a href="3.10.11/">3.10.11/</a>             2023-04-05 12:00    -
+<img src="/icons/folder.gif" alt="[DIR]"> <a href="2.7.18/">2.7.18/</a>              2020-04-20 12:00    -
+<img src="/icons/compressed.gif" alt="   "> <a href="python-3.14.7-amd64.exe">python-3.14.7-amd64.exe</a>
+</pre></body></html>`
 
-	files := extractHrefsFromDirIndex(fixture)
-
-	want := []string{
-		"Python-3.14.7.tar.xz",
-		"python-3.14.7-amd64.exe",
-		"python-3.14.7-amd64.zip",
-		"python-3.14.7-arm64.zip",
-		"windows-3.14.7.json",
-		"python-3.14.7-macos11.pkg",
-	}
-	found := make(map[string]bool, len(want))
-	for _, f := range files {
-		found[f] = true
-	}
-	for _, name := range want {
-		if !found[name] {
-			t.Errorf("expected href %q to be extracted from fixture", name)
+	var found []string
+	for _, m := range pythonHrefRe.FindAllStringSubmatch(fixture, -1) {
+		if sub := pythonFTPDirRe.FindStringSubmatch(m[1]); sub != nil {
+			found = append(found, sub[1])
 		}
 	}
-	if found["../"] {
-		t.Error("parent directory link should be skipped")
+	if len(found) != 5 {
+		t.Fatalf("expected 5 version dirs, got %d: %v", len(found), found)
 	}
-	if len(files) != len(want) {
-		t.Errorf("got %d entries, want %d: %v", len(files), len(want), files)
-	}
-}
-
-func extractHrefsFromDirIndex(html string) []string {
-	var files []string
-	for _, m := range pythonHrefRe.FindAllStringSubmatch(html, -1) {
-		name := m[1]
-		if name == "../" || strings.HasPrefix(name, "/") || strings.Contains(name, "?") {
-			continue
+	for _, v := range found {
+		if v == "python-3.14.7-amd64.exe" {
+			t.Error("file href must not be matched as a version directory")
 		}
-		files = append(files, name)
 	}
-	return files
 }
