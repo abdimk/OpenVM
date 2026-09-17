@@ -982,17 +982,26 @@ func (m SelectedInstalledModel) buildHeader() string {
 		return fmt.Sprintf("Language: [%s]", m.language.Name)
 	}
 
-	leftBlock := lipgloss.NewStyle().
+	labelStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#ffffff")).
+		Foreground(lipgloss.Color("#ffffff"))
+
+	leftBlock := labelStyle.
 		PaddingLeft(2).
 		PaddingBottom(0).
 		Render("Language:")
 
-	greenStyle := lipgloss.NewStyle().
+	langStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("#00ff00")).
-		Render(fmt.Sprintf(" [%s]", m.language.Name))
+		Render(m.language.Name)
+
+	langPart := lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		labelStyle.Render(" ["),
+		langStyle,
+		labelStyle.Render("]"),
+	)
 
 	var rightBlock string
 	if m.busy() || m.phase == utils.PhaseDone {
@@ -1007,13 +1016,12 @@ func (m SelectedInstalledModel) buildHeader() string {
 			Render(bar + " " + status)
 	} else {
 		rightBlock = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#ffffff")).
 			PaddingRight(2).
 			PaddingLeft(1).
-			Render(fmt.Sprintf("Machine: [%s]", utils.GetMachineType()))
+			Render(utils.MachineLabel())
 	}
 
-	leftW := lipgloss.Width(leftBlock) + lipgloss.Width(greenStyle)
+	leftW := lipgloss.Width(leftBlock) + lipgloss.Width(langPart)
 	rightW := lipgloss.Width(rightBlock)
 
 	gap := m.width - leftW - rightW
@@ -1024,7 +1032,7 @@ func (m SelectedInstalledModel) buildHeader() string {
 	return lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		leftBlock,
-		greenStyle,
+		langPart,
 		strings.Repeat(" ", gap),
 		rightBlock,
 	)

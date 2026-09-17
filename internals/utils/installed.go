@@ -110,10 +110,9 @@ func (m InstalledModel) buildListTitle() string {
 		Render("Current Version of Languages and Dev Tools")
 
 	rightBlock := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#ffffff")).
 		PaddingRight(2).
 		PaddingLeft(1).
-		Render(machineLabel())
+		Render(MachineLabel())
 
 	leftW := lipgloss.Width(leftBlock)
 	rightW := lipgloss.Width(rightBlock)

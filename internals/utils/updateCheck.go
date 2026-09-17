@@ -22,7 +22,7 @@ type UpdateCheckModel struct {
 
 func NewUpdateCheckModel() UpdateCheckModel {
 	pager := ui.NewPager("Check For Update", "")
-	pager.ShowPlainHeader("Check For Update", machineLabel())
+	pager.ShowPlainHeader("Check For Update", MachineLabel())
 	return UpdateCheckModel{
 		loading: true,
 		pager:   pager,

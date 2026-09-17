@@ -153,7 +153,6 @@ func (p Pager) headerView() string {
 			Render(p.title)
 
 		rightBlock := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#ffffff")).
 			PaddingRight(2).
 			PaddingLeft(1).
 			Render(p.titleRight)

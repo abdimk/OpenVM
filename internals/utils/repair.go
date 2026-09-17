@@ -55,7 +55,7 @@ type RepairModel struct {
 
 func NewRepairModel() RepairModel {
 	pager := ui.NewPager("Repair", "")
-	pager.ShowPlainHeader("Repair", machineLabel())
+	pager.ShowPlainHeader("Repair", MachineLabel())
 	return RepairModel{
 		loading: true,
 		pager:   pager,

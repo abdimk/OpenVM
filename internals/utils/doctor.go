@@ -22,7 +22,7 @@ type DoctorModel struct {
 
 func NewDoctorModel() DoctorModel {
 	pager := ui.NewPager("Doctor", "")
-	pager.ShowPlainHeader("Doctor", machineLabel())
+	pager.ShowPlainHeader("Doctor", MachineLabel())
 	return DoctorModel{
 		loading: true,
 		pager:   pager,

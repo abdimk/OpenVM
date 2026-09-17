@@ -49,7 +49,7 @@ func buildVersionContent(width int) string {
 
 	parts = append(parts,
 		" [OpenVM]: "+version,
-		" [Machine]: "+GetMachineType(),
+		" "+MachineLabel(),
 		" [OpenVM Path]: "+SwapFilesDir(),
 		" [Installed Packages]: "+packagesText,
 		" [Available Storage]: "+humanBytes(availableSpaceBytes()),

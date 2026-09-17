@@ -116,10 +116,9 @@ func (m model) buildListTitle() string {
 		Render("Available Commands")
 
 	rightBlock := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#ffffff")).
 		PaddingRight(2).
 		PaddingLeft(1).
-		Render(fmt.Sprintf("Machine: [%s]", utils.GetMachineType()))
+		Render(utils.MachineLabel())
 	leftW := lipgloss.Width(leftBlock)
 	rightW := lipgloss.Width(rightBlock)
 
