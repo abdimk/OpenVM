@@ -34,27 +34,57 @@ func buildVersionContent(width int) string {
 		Hyperlink(developerURL).
 		Render(developerURL)
 
-	var parts []string
-
-	logo := ui.OpenVMLogo(width)
-	if logo != "" {
-		parts = append(parts, logo)
+	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#8A8A8A"))
+	labelWidth := lipgloss.Width("developer")
+	pad := func(label string) string {
+		return label + strings.Repeat(" ", labelWidth-lipgloss.Width(label)+1)
 	}
+
+	versionValue := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("204")).
+		Render(version)
+
+	machineValue := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#D6D6D6")).
+		Render(GetMachineType())
+
+	pathValue := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#8A8A8A")).
+		Render(SwapFilesDir())
 
 	packages := installedToolchains()
 	packagesText := "none"
 	if len(packages) > 0 {
 		packagesText = strings.Join(packages, ", ")
 	}
+	packagesValue := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#FFD700")).
+		Render(packagesText)
 
-	parts = append(parts,
-		" [OpenVM]: "+version,
-		" "+MachineLabel(),
-		" [OpenVM Path]: "+SwapFilesDir(),
-		" [Installed Packages]: "+packagesText,
-		" [Available Storage]: "+humanBytes(availableSpaceBytes()),
-		" [Developer]: "+developer,
-	)
+	storageValue := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#00ff00")).
+		Render(humanBytes(availableSpaceBytes()))
+
+	row := func(label, value string) string {
+		return "  " + labelStyle.Render(pad(label)) + value
+	}
+
+	var parts []string
+
+	if logo := ui.OpenVMLogo(width); logo != "" {
+		parts = append(parts, logo)
+	}
+
+	parts = append(parts, strings.Join([]string{
+		row("Version", versionValue),
+		row("Machine", machineValue),
+		row("Path", pathValue),
+		row("Packages", packagesValue),
+		row("Storage", storageValue),
+		row("Developer", developer),
+	}, "\n"))
 
 	return strings.Join(parts, "\n\n")
 }
