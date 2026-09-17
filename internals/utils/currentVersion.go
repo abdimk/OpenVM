@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"fmt"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -69,12 +68,7 @@ func (m CurrentVersionModel) renderLines() string {
 	if !m.done {
 		return waitingView()
 	}
-	var b strings.Builder
-	for _, line := range m.lines {
-		b.WriteString(line)
-		b.WriteString("\n")
-	}
-	return lipgloss.NewStyle().PaddingLeft(2).Render(strings.TrimSuffix(b.String(), "\n"))
+	return lipgloss.NewStyle().PaddingLeft(2).Render(strings.Join(m.lines, "\n\n"))
 }
 
 func (m CurrentVersionModel) View() tea.View {
@@ -87,12 +81,36 @@ func currentVersionLines() []string {
 		return []string{"No supported languages or tools detected on this machine."}
 	}
 
-	lines := make([]string, 0, len(available)*3)
+	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	valueStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#D6D6D6"))
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#8A8A8A"))
+	nameStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("204")).
+		Background(lipgloss.Color("235"))
+
+	labelWidth := lipgloss.Width("version")
+	pad := func(label string) string {
+		return label + strings.Repeat(" ", labelWidth-lipgloss.Width(label)+1)
+	}
+
+	lines := make([]string, 0, len(available))
 	for _, lang := range available {
+		version := strings.TrimSpace(lang.Version)
+		if version == "" {
+			version = "unknown"
+		}
+		path := lang.Path
+		if path == "" {
+			path = "(not found)"
+		}
+
 		lines = append(lines,
-			fmt.Sprintf("[%s]", lang.Name),
-			fmt.Sprintf("  version: %s", strings.TrimSpace(lang.Version)),
-			fmt.Sprintf("  path:    %s", lang.Path),
+			nameStyle.Render("["+lang.Name+"]")+
+				"\n   "+labelStyle.Render(pad("version"))+valueStyle.Render(version)+
+				"\n   "+labelStyle.Render(pad("path"))+dimStyle.Render(path),
 		)
 	}
 	return lines

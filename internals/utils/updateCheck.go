@@ -83,12 +83,7 @@ func (m UpdateCheckModel) renderLines() string {
 	if !m.done {
 		return lipgloss.NewStyle().PaddingLeft(2).Render(m.spinner.View())
 	}
-	var b strings.Builder
-	for _, line := range m.lines {
-		b.WriteString(line)
-		b.WriteString("\n")
-	}
-	return lipgloss.NewStyle().PaddingLeft(2).Render(strings.TrimSuffix(b.String(), "\n"))
+	return lipgloss.NewStyle().PaddingLeft(2).Render(strings.Join(m.lines, "\n\n"))
 }
 
 func (m UpdateCheckModel) View() tea.View {
@@ -108,6 +103,12 @@ func updateCheckLines() []string {
 	return lines
 }
 
+var updateAvailableMark = lipgloss.NewStyle().
+	Bold(true).
+	Foreground(lipgloss.Color("#FFA500")).
+	Background(lipgloss.Color("#444444")).
+	Render("UPDATE AVAILABLE")
+
 func updateCheckLine(lang Language) string {
 	current := firstSemverField(lang.Version)
 	if current == "" {
@@ -120,7 +121,7 @@ func updateCheckLine(lang Language) string {
 	}
 
 	if semverGreater(latest, current) {
-		return fmt.Sprintf("[%s] %s installed • latest %s • UPDATE AVAILABLE", lang.Name, current, latest)
+		return fmt.Sprintf("[%s] %s installed • latest %s • %s", lang.Name, current, latest, updateAvailableMark)
 	}
 	return fmt.Sprintf("[%s] %s installed • latest %s • up to date", lang.Name, current, latest)
 }
