@@ -61,6 +61,9 @@ func (m InstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "esc", "backspace":
+			if m.tools != nil && m.tools.SettingFilter() {
+				return m, m.tools.Update(msg)
+			}
 			return m, func() tea.Msg { return BackMsg{} }
 		case "enter":
 			if lang, ok := m.selectedTool(); ok {

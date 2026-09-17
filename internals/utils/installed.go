@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -20,6 +21,8 @@ type UninstalledMsg struct {
 	Name string
 	Err  error
 }
+
+type UninstallDoneResetMsg struct{}
 
 type InstalledModel struct {
 	width      int
@@ -90,11 +93,18 @@ func (m InstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case UninstalledMsg:
 		m.confirming = false
 		if msg.Err != nil {
-			EmitFooterHintColored(fmt.Sprintf("uninstall failed: %v • esc back", msg.Err), "#ff5555")
-		} else {
-			EmitFooterHint(fmt.Sprintf("%s uninstalled • esc back", msg.Name))
+			EmitFooterHintHighlighted(fmt.Sprintf("Uninstall failed: %v • esc back", msg.Err), "#ff5555", "#444444")
+			return m, m.refresh()
 		}
-		return m, m.refresh()
+		EmitFooterHintHighlighted(fmt.Sprintf("Uninstall complete: %s", msg.Name), "#00ff00", "#444444")
+		return m, tea.Batch(
+			m.refresh(),
+			tea.Tick(3*time.Second, func(time.Time) tea.Msg { return UninstallDoneResetMsg{} }),
+		)
+
+	case UninstallDoneResetMsg:
+		ClearFooterHint()
+		return m, nil
 
 	case tea.KeyMsg:
 		if m.confirming {
@@ -123,6 +133,9 @@ func (m InstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		switch msg.String() {
 		case "esc", "backspace":
+			if m.languages != nil && m.languages.SettingFilter() {
+				return m, m.languages.Update(msg)
+			}
 			return m, func() tea.Msg { return BackMsg{} }
 		case "u":
 			if _, ok := m.selectedLanguage(); ok {
@@ -145,7 +158,7 @@ func (m InstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m InstalledModel) uninstallCmd(name string) tea.Cmd {
-	EmitFooterHint(fmt.Sprintf("uninstalling %s...", name))
+	EmitFooterHintHighlighted(fmt.Sprintf("Uninstalling %s...", name), "#FFA500", "#444444")
 	return func() tea.Msg {
 		return UninstalledMsg{Name: name, Err: UninstallTool(name)}
 	}
@@ -166,6 +179,10 @@ func (m *InstalledModel) refresh() tea.Cmd {
 		return m.languages.SetItems(items)
 	}
 	return nil
+}
+
+func (m *InstalledModel) Refresh() tea.Cmd {
+	return m.refresh()
 }
 
 func (m InstalledModel) Confirming() bool {

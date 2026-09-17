@@ -224,6 +224,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.screen = MainMenuScreen
 		}
 		m.updateLayout()
+
+		if m.screen == InstalledScreen {
+			return m, m.installed.Refresh()
+		}
 		return m, nil
 	}
 
@@ -402,13 +406,14 @@ func (m model) footerText() string {
 			return m.installed.ConfirmationView()
 		}
 		if hint := utils.CurrentFooterHint(); hint.Text != "" {
+			st := lipgloss.NewStyle().Bold(true)
 			if hint.Color != "" {
-				return lipgloss.NewStyle().
-					Foreground(lipgloss.Color(hint.Color)).
-					Bold(true).
-					Render(hint.Text)
+				st = st.Foreground(lipgloss.Color(hint.Color))
 			}
-			return hint.Text
+			if hint.Bg != "" {
+				st = st.Background(lipgloss.Color(hint.Bg))
+			}
+			return st.Render(hint.Text)
 		}
 		return "↑/k up • ↓/j down • enter select • u uninstall • esc back"
 

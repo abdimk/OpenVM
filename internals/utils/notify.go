@@ -5,6 +5,7 @@ import "sync/atomic"
 type FooterHint struct {
 	Text  string
 	Color string
+	Bg    string
 }
 
 var footerHint atomic.Value
@@ -15,6 +16,10 @@ func EmitFooterHint(text string) {
 
 func EmitFooterHintColored(text, color string) {
 	footerHint.Store(FooterHint{Text: text, Color: color})
+}
+
+func EmitFooterHintHighlighted(text, color, bg string) {
+	footerHint.Store(FooterHint{Text: text, Color: color, Bg: bg})
 }
 
 func CurrentFooterHint() FooterHint {

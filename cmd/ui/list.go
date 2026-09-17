@@ -87,6 +87,10 @@ func (m ListModel) View() string {
 func (m *ListModel) SetSize(width, height int) {
 	m.list.SetSize(width, height)
 }
+func (m *ListModel) SettingFilter() bool {
+	return m.list.SettingFilter()
+}
+
 func (m *ListModel) SetTitle(title string) {
 	m.list.Title = title
 }

@@ -322,6 +322,7 @@ func swapWindows(srcRoot string) (string, error) {
 		}
 		return "", err
 	}
+	prependProcessPath(filepath.Join(installDir, "bin"))
 
 	os.RemoveAll(backupDir)
 	return installDir, nil

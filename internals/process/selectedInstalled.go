@@ -307,6 +307,9 @@ func (m SelectedInstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "esc", "backspace":
+			if m.versions != nil && m.versions.SettingFilter() {
+				return m, m.versions.Update(msg)
+			}
 			if m.busy() {
 				if m.cancel != nil {
 

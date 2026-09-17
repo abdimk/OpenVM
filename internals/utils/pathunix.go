@@ -10,9 +10,36 @@ import (
 
 func activatePath(dir string) error {
 	if runtime.GOOS == "windows" {
-		return ensureWindowsPath(dir)
+		if err := ensureWindowsPath(dir); err != nil {
+			return err
+		}
+		prependProcessPath(dir)
+		return nil
 	}
-	return ensureUnixPath(dir)
+	if err := ensureUnixPath(dir); err != nil {
+		return err
+	}
+	prependProcessPath(dir)
+	return nil
+}
+
+func prependProcessPath(dir string) {
+	sep := string(os.PathListSeparator)
+	cur := os.Getenv("PATH")
+	if cur == "" {
+		_ = os.Setenv("PATH", dir)
+		return
+	}
+	for _, p := range filepath.SplitList(cur) {
+		if runtime.GOOS == "windows" {
+			if strings.EqualFold(p, dir) {
+				return
+			}
+		} else if p == dir {
+			return
+		}
+	}
+	_ = os.Setenv("PATH", dir+sep+cur)
 }
 
 func ensureUnixPath(dir string) error {
@@ -53,6 +80,8 @@ func unixShellConfig(dir string) (rc, line string, err error) {
 		return filepath.Join(home, ".zshrc"), "export PATH=" + quoted + ":$PATH", nil
 	case "fish":
 		return filepath.Join(home, ".config", "fish", "config.fish"), "fish_add_path --prepend " + quoted, nil
+	case "bash":
+		return filepath.Join(home, ".bashrc"), "export PATH=" + quoted + ":$PATH", nil
 	default:
 		return filepath.Join(home, ".profile"), "export PATH=" + quoted + ":$PATH", nil
 	}
