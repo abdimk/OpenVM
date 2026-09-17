@@ -486,7 +486,7 @@ func (m SelectedInstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	var cmds []tea.Cmd
 
-	if m.loading {
+	if m.loading || m.busy() {
 		var spinnerCmd tea.Cmd
 		m.spinner, spinnerCmd = m.spinner.Update(msg)
 		cmds = append(cmds, spinnerCmd)
@@ -653,7 +653,7 @@ func (m *SelectedInstalledModel) startDownload(entry versionEntry) tea.Cmd {
 		}
 	}
 
-	return tea.Batch(downloadCmd, m.nextProgress())
+	return tea.Batch(m.spinner.Init(), downloadCmd, m.nextProgress())
 }
 
 func (m *SelectedInstalledModel) nextProgress() tea.Cmd {
@@ -997,6 +997,103 @@ func (m SelectedInstalledModel) detailView() string {
 	return b.String()
 }
 
+func (m SelectedInstalledModel) installInfoView() string {
+	pkg := fmt.Sprintf("%s %s", m.languageLabel(), m.activeVersion)
+
+	green := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#00ff00"))
+	gold := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFD700"))
+	dim := lipgloss.NewStyle().Foreground(lipgloss.Color("#8A8A8A"))
+	faint := lipgloss.NewStyle().Foreground(lipgloss.Color("#5A5A5A"))
+	white := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#D6D6D6"))
+
+	spin := func() string {
+		return strings.TrimSpace(m.spinner.WithText("").View())
+	}
+
+	action := "downloading"
+	switch m.phase {
+	case utils.PhaseVerifying:
+		action = "verifying checksum for"
+	case utils.PhaseExtracting:
+		action = "extracting"
+	case utils.PhaseSwapping:
+		action = "installing"
+	}
+
+	var b strings.Builder
+
+	row := func(left, right string) {
+		gap := 2
+		if m.width > 0 {
+			gap = m.width - lipgloss.Width(left) - lipgloss.Width(right)
+			if gap < 2 {
+				gap = 2
+			}
+		}
+		b.WriteString(left + strings.Repeat(" ", gap) + right + "\n")
+	}
+
+	row(gold.Render(spin())+"  "+white.Render(action)+" "+gold.Render(pkg), "")
+
+	steps := []struct{ done, active string }{
+		{"Checksum verified", "Verifying checksum"},
+		{"Archive extracted", "Extracting files"},
+		{"Toolchain installed", "Installing toolchain"},
+	}
+
+	dlMarker, dlLabel := dim.Render("·"), faint.Render("Downloaded archive")
+	if m.phase == utils.PhaseDownloading {
+		dlMarker, dlLabel = gold.Render("●"), gold.Render("Downloading archive")
+	} else {
+		dlMarker, dlLabel = green.Render("✓"), white.Render("Downloaded archive")
+	}
+
+	dlRight := ""
+	if m.phase == utils.PhaseDownloading {
+		mb := float64(m.downloaded) / (1024 * 1024)
+		if m.total > 0 {
+			dlRight = fmt.Sprintf("%.1f / %.1f MB", mb, float64(m.total)/(1024*1024))
+		} else {
+			dlRight = fmt.Sprintf("%.1f MB", mb)
+		}
+		dlRight = dim.Render(dlRight)
+	}
+	row("  "+dlMarker+"  "+dlLabel, dlRight)
+
+	for i, s := range steps {
+		marker, label := dim.Render("·"), faint.Render(s.done)
+		switch m.phase {
+		case utils.PhaseVerifying:
+			if i == 0 {
+				marker, label = gold.Render("●"), gold.Render(s.active)
+			}
+		case utils.PhaseExtracting:
+			if i == 0 {
+				marker, label = green.Render("✓"), white.Render(s.done)
+			} else if i == 1 {
+				marker, label = gold.Render("●"), gold.Render(s.active)
+			}
+		case utils.PhaseSwapping:
+			if i <= 1 {
+				marker, label = green.Render("✓"), white.Render(s.done)
+			} else if i == 2 {
+				marker, label = gold.Render("●"), gold.Render(s.active)
+			}
+		}
+		row("  "+marker+"  "+label, "")
+	}
+
+	b.WriteString("\n")
+
+	row("  "+m.progress.Bar(), "")
+	b.WriteString("\n")
+
+	b.WriteString("  " + faint.Render(
+		"press esc to cancel — nothing is replaced until the swap completes"))
+
+	return b.String()
+}
+
 func (m SelectedInstalledModel) statusText() string {
 	switch m.phase {
 	case utils.PhaseDownloading:
@@ -1044,7 +1141,6 @@ func (m SelectedInstalledModel) buildHeader() string {
 
 	var rightBlock string
 	if m.busy() || m.phase == utils.PhaseDone {
-		bar := m.progress.Bar()
 		status := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FFD700")).
 			Render(m.statusText())
@@ -1052,7 +1148,7 @@ func (m SelectedInstalledModel) buildHeader() string {
 		rightBlock = lipgloss.NewStyle().
 			PaddingRight(2).
 			PaddingLeft(1).
-			Render(bar + " " + status)
+			Render(status)
 	} else {
 		rightBlock = lipgloss.NewStyle().
 			PaddingRight(2).
@@ -1107,12 +1203,7 @@ func (m SelectedInstalledModel) View() tea.View {
 
 	case m.phase == utils.PhaseDownloading || m.phase == utils.PhaseVerifying ||
 		m.phase == utils.PhaseExtracting || m.phase == utils.PhaseSwapping:
-		hint := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FFD700")).
-			PaddingLeft(2).
-			Render(fmt.Sprintf("Installing %s — press esc to cancel (nothing is replaced until the swap completes)",
-				m.activeVersion))
-		content.WriteString(hint)
+		content.WriteString(m.installInfoView())
 		content.WriteString("\n")
 
 	case m.phase == utils.PhaseDone:

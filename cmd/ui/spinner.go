@@ -27,6 +27,11 @@ func (s Spinner) Init() tea.Cmd {
 	return s.model.Tick
 }
 
+func (s Spinner) WithText(text string) Spinner {
+	s.text = text
+	return s
+}
+
 func (s Spinner) Update(msg tea.Msg) (Spinner, tea.Cmd) {
 	var cmd tea.Cmd
 	s.model, cmd = s.model.Update(msg)
