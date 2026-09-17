@@ -23,7 +23,7 @@ func NewInstallModel() InstallModel {
 		{TitleText: "Go", DescriptionText: "Go programming language and toolchain"},
 		{TitleText: "Python", DescriptionText: "Python interpreter and pip"},
 		{TitleText: "Node", DescriptionText: "Node.js runtime and npm"},
-		{TitleText: "Rust", DescriptionText: "Rustup, rustc and cargo"},
+		{TitleText: "Rust", DescriptionText: "Rust language and toolchain (rustc, cargo, clippy)"},
 		{TitleText: "Docker", DescriptionText: "Docker Engine and CLI"},
 		{TitleText: "Kubernetes", DescriptionText: "kubectl command-line tool"},
 	}

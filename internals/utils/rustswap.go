@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 )
 
-func InstallClangArchive(ctx context.Context, archivePath, filename string, report progressFunc) (installDir string, err error) {
+func InstallRustArchive(ctx context.Context, archivePath, filename string, report progressFunc) (installDir string, err error) {
 	if report == nil {
 		report = func(DownloadProgressMsg) {}
 	}
@@ -31,15 +32,20 @@ func InstallClangArchive(ctx context.Context, archivePath, filename string, repo
 	if entries, _ := os.ReadDir(extractDir); len(entries) == 1 && entries[0].IsDir() {
 		srcRoot = filepath.Join(extractDir, entries[0].Name())
 	}
-	if _, statErr := os.Stat(filepath.Join(srcRoot, "bin")); statErr != nil {
-		err = fmt.Errorf("archive layout unexpected: no bin/ directory found in %s", srcRoot)
+
+	marker := filepath.Join("bin", "rustc")
+	if runtime.GOOS == "windows" {
+		marker = filepath.Join("bin", "rustc.exe")
+	}
+	if _, statErr := os.Stat(filepath.Join(srcRoot, marker)); statErr != nil {
+		err = fmt.Errorf("archive layout unexpected: no %s found in %s", marker, srcRoot)
 		return "", err
 	}
 
 	report(DownloadProgressMsg{Phase: PhaseSwapping, File: filename})
 
-	installDir = filepath.Join(SwapFilesDir(), "llvm")
-	backupDir := filepath.Join(SwapFilesDir(), "llvm.bak")
+	installDir = filepath.Join(SwapFilesDir(), "rust")
+	backupDir := filepath.Join(SwapFilesDir(), "rust.bak")
 
 	os.RemoveAll(backupDir)
 

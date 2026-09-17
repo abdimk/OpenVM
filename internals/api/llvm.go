@@ -7,15 +7,32 @@ import (
 	"net/http"
 	"runtime"
 	"strings"
+	"sync"
+	"time"
 )
 
 const (
 	llvmReleasesURL = "https://api.github.com/repos/llvm/llvm-project/releases"
 
 	llvmMaxPages = 5
+
+	llvmCacheTTL = 10 * time.Minute
+)
+
+var (
+	llvmCacheMu   sync.Mutex
+	llvmCacheTime time.Time
+	llvmCached    []Release
 )
 
 func FetchLLVMReleases() ([]Release, error) {
+	llvmCacheMu.Lock()
+	defer llvmCacheMu.Unlock()
+
+	if time.Since(llvmCacheTime) < llvmCacheTTL {
+		return llvmCached, nil
+	}
+
 	var all []GitHubRelease
 	for page := 1; page <= llvmMaxPages; page++ {
 		url := fmt.Sprintf("%s?per_page=100&page=%d", llvmReleasesURL, page)
@@ -32,7 +49,9 @@ func FetchLLVMReleases() ([]Release, error) {
 		}
 	}
 
-	return llvmReleasesToModel(all), nil
+	llvmCached = llvmReleasesToModel(all)
+	llvmCacheTime = time.Now()
+	return llvmCached, nil
 }
 
 func fetchGitHubReleases(url string) ([]GitHubRelease, error) {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 )
 
 func InstallKubectlBinary(ctx context.Context, binaryPath, filename string, report progressFunc) (installDir string, err error) {
@@ -43,12 +42,10 @@ func InstallKubectlBinary(ctx context.Context, binaryPath, filename string, repo
 		return "", err
 	}
 
-	if runtime.GOOS == "windows" {
-		if err = ensureWindowsPath(installDir); err != nil {
-			os.RemoveAll(installDir)
-			restoreSwapDir(backupDir, installDir)
-			return "", err
-		}
+	if err = activatePath(installDir); err != nil {
+		os.RemoveAll(installDir)
+		restoreSwapDir(backupDir, installDir)
+		return "", err
 	}
 
 	os.RemoveAll(backupDir)

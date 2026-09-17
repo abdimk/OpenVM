@@ -174,7 +174,19 @@ func ManagedToolchainVersion(binary string) string {
 		name += ".exe"
 	}
 	exe := filepath.Join(SwapFilesDir(), binary, name)
-	out, err := exec.Command(exe, versionArgs(name)...).CombinedOutput()
+	return runVersionCommand(exe, name)
+}
+
+func ManagedRustVersion() string {
+	exe := filepath.Join(SwapFilesDir(), "rust", "bin", "rustc")
+	if runtime.GOOS == "windows" && !strings.HasSuffix(strings.ToLower(exe), ".exe") {
+		exe += ".exe"
+	}
+	return runVersionCommand(exe, "rustc")
+}
+
+func runVersionCommand(exe, binary string) string {
+	out, err := exec.Command(exe, versionArgs(binary)...).CombinedOutput()
 	if err != nil {
 		return ""
 	}

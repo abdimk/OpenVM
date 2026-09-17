@@ -68,6 +68,11 @@ func InstallGoArchive(ctx context.Context, archivePath, filename string, report 
 	if err != nil {
 		return "", err
 	}
+	if runtime.GOOS != "windows" {
+		if err = activatePath(filepath.Join(installDir, "bin")); err != nil {
+			return "", err
+		}
+	}
 
 	os.RemoveAll(extractDir)
 	return installDir, nil

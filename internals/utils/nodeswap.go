@@ -63,15 +63,17 @@ func InstallNodeArchive(ctx context.Context, archivePath, filename string, repor
 		return "", fmt.Errorf("activating new toolchain: %w", err)
 	}
 
-	if runtime.GOOS == "windows" {
-		if err = ensureWindowsPath(installDir); err != nil {
+	binDir := installDir
+	if runtime.GOOS != "windows" {
+		binDir = filepath.Join(installDir, "bin")
+	}
+	if err = activatePath(binDir); err != nil {
 
-			os.RemoveAll(installDir)
-			if _, statErr := os.Stat(backupDir); statErr == nil {
-				_ = os.Rename(backupDir, installDir)
-			}
-			return "", err
+		os.RemoveAll(installDir)
+		if _, statErr := os.Stat(backupDir); statErr == nil {
+			_ = os.Rename(backupDir, installDir)
 		}
+		return "", err
 	}
 
 	os.RemoveAll(backupDir)

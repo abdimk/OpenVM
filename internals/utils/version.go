@@ -1,6 +1,9 @@
 package utils
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -38,16 +41,49 @@ func buildVersionContent(width int) string {
 		parts = append(parts, logo)
 	}
 
+	packages := installedToolchains()
+	packagesText := "none"
+	if len(packages) > 0 {
+		packagesText = strings.Join(packages, ", ")
+	}
+
 	parts = append(parts,
 		" [OpenVM]: "+version,
 		" [Machine]: "+GetMachineType(),
-		" [OpenVM Path]: dummy path",
-		" [Installed Packages]:",
-		" [Available Storage]: 150GB",
+		" [OpenVM Path]: "+SwapFilesDir(),
+		" [Installed Packages]: "+packagesText,
+		" [Available Storage]: "+humanBytes(availableSpaceBytes()),
 		" [Developer]: "+developer,
 	)
 
 	return strings.Join(parts, "\n\n")
+}
+
+func installedToolchains() []string {
+	var names []string
+	dir := SwapFilesDir()
+	for _, tool := range []string{"go", "python", "node", "llvm", "docker", "kubectl"} {
+		if _, err := os.Stat(filepath.Join(dir, tool)); err == nil {
+			names = append(names, tool)
+		}
+	}
+	return names
+}
+
+func humanBytes(n int64) string {
+	if n < 0 {
+		return "n/a"
+	}
+	const unit = 1024
+	if n < unit {
+		return fmt.Sprintf("%d B", n)
+	}
+	div, exp := int64(unit), 0
+	for m := n / unit; m >= unit; m /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %ciB", float64(n)/float64(div), "KMGTPE"[exp])
 }
 
 type VersionModel struct {

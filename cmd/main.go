@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -32,8 +31,6 @@ type model struct {
 	height         int
 	loadingSpinner ui.Spinner
 	list           *ui.ListModel
-	table          *ui.TableModel
-	packageManager *ui.PackageManagerModel
 
 	screen            Screen
 	selectedFrom      Screen
@@ -59,36 +56,22 @@ func newModel() *model {
 		{TitleText: "Exit", DescriptionText: "Exit OpenVM"},
 	}
 
-	packages := []string{
-		"auth-service",
-		"receiver",
-		"mock-data",
-		"synheart-cli",
-	}
-
 	return &model{
 		loadingSpinner: ui.SpinnerModel("Loading..."),
 		list:           ui.New("Available Commands", items, 80, 20),
-		packageManager: ui.NewPackageManager(
-			packages,
-			installPackage,
-		),
-		screen:    MainMenuScreen,
-		installed: utils.NewInstalledModel(),
-		version:   utils.NewVersionModel(),
-		install:   utils.NewInstallModel(),
-		update:    utils.NewUpdateCheckModel(),
-		repair:    utils.NewRepairModel(),
-		doctor:    utils.NewDoctorModel(),
-		current:   utils.NewCurrentVersionModel(),
+		screen:         MainMenuScreen,
+		installed:      utils.NewInstalledModel(),
+		version:        utils.NewVersionModel(),
+		install:        utils.NewInstallModel(),
+		update:         utils.NewUpdateCheckModel(),
+		repair:         utils.NewRepairModel(),
+		doctor:         utils.NewDoctorModel(),
+		current:        utils.NewCurrentVersionModel(),
 	}
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(
-		m.loadingSpinner.Init(),
-		m.packageManager.Init(),
-	)
+	return m.loadingSpinner.Init()
 }
 
 func (m model) header() string {
@@ -361,8 +344,6 @@ func (m model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.updateLayout()
 				return m, m.doctor.Init()
 
-			case "Completion":
-
 			case "Current Version":
 				m.screen = CurrentVersionScreen
 				m.updateLayout()
@@ -391,9 +372,8 @@ func (m model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	m.loadingSpinner, cmd1 = m.loadingSpinner.Update(msg)
 	cmd2 := m.list.Update(msg)
-	cmd4 := m.packageManager.Update(msg)
 
-	return m, tea.Batch(cmd1, cmd2, cmd4, installedCmd)
+	return m, tea.Batch(cmd1, cmd2, installedCmd)
 }
 
 func (m model) footerText() string {
@@ -541,14 +521,6 @@ func (m model) View() tea.View {
 	view.AltScreen = true
 
 	return view
-}
-
-func installPackage(pkg string) tea.Cmd {
-	return tea.Tick(time.Second, func(time.Time) tea.Msg {
-		return ui.InstalledPackageMsg{
-			Package: pkg,
-		}
-	})
 }
 
 func main() {

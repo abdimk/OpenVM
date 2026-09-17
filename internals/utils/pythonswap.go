@@ -32,8 +32,12 @@ func InstallPythonArchive(ctx context.Context, archivePath, filename string, rep
 	if entries, _ := os.ReadDir(extractDir); len(entries) == 1 && entries[0].IsDir() {
 		srcRoot = filepath.Join(extractDir, entries[0].Name())
 	}
-	if _, statErr := os.Stat(filepath.Join(srcRoot, "python.exe")); statErr != nil {
-		err = fmt.Errorf("archive layout unexpected: no python.exe found in %s", srcRoot)
+	marker := "python.exe"
+	if runtime.GOOS != "windows" {
+		marker = filepath.Join("bin", "python3")
+	}
+	if _, statErr := os.Stat(filepath.Join(srcRoot, marker)); statErr != nil {
+		err = fmt.Errorf("archive layout unexpected: no %s found in %s", marker, srcRoot)
 		return "", err
 	}
 
@@ -58,15 +62,17 @@ func InstallPythonArchive(ctx context.Context, archivePath, filename string, rep
 		return "", fmt.Errorf("activating new toolchain: %w", err)
 	}
 
-	if runtime.GOOS == "windows" {
-		if err = ensureWindowsPath(installDir); err != nil {
+	binDir := installDir
+	if runtime.GOOS != "windows" {
+		binDir = filepath.Join(installDir, "bin")
+	}
+	if err = activatePath(binDir); err != nil {
 
-			os.RemoveAll(installDir)
-			if _, statErr := os.Stat(backupDir); statErr == nil {
-				_ = os.Rename(backupDir, installDir)
-			}
-			return "", err
+		os.RemoveAll(installDir)
+		if _, statErr := os.Stat(backupDir); statErr == nil {
+			_ = os.Rename(backupDir, installDir)
 		}
+		return "", err
 	}
 
 	os.RemoveAll(backupDir)

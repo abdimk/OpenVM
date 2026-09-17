@@ -63,15 +63,13 @@ func InstallDockerArchive(ctx context.Context, archivePath, filename string, rep
 		return "", fmt.Errorf("activating new toolchain: %w", err)
 	}
 
-	if runtime.GOOS == "windows" {
-		if err = ensureWindowsPath(installDir); err != nil {
+	if err = activatePath(installDir); err != nil {
 
-			os.RemoveAll(installDir)
-			if _, statErr := os.Stat(backupDir); statErr == nil {
-				_ = os.Rename(backupDir, installDir)
-			}
-			return "", err
+		os.RemoveAll(installDir)
+		if _, statErr := os.Stat(backupDir); statErr == nil {
+			_ = os.Rename(backupDir, installDir)
 		}
+		return "", err
 	}
 
 	os.RemoveAll(backupDir)

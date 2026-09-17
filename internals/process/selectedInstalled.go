@@ -76,7 +76,7 @@ type SelectedInstalledModel struct {
 func NewSelectedInstalledModel(lang utils.Language) SelectedInstalledModel {
 	m := SelectedInstalledModel{
 		language: lang,
-		loading:  isGo(lang) || isClang(lang) || isPython(lang) || isNode(lang) || isDocker(lang) || isKubernetes(lang),
+		loading:  isGo(lang) || isClang(lang) || isPython(lang) || isNode(lang) || isRust(lang) || isDocker(lang) || isKubernetes(lang),
 		spinner:  ui.SpinnerModel("Fetching available versions..."),
 		progress: ui.NewProgress(),
 		phase:    utils.PhaseIdle,
@@ -120,6 +120,10 @@ func NewSelectedInstalledModel(lang utils.Language) SelectedInstalledModel {
 		m.resolveArtifact = func(version string) (api.File, error) {
 			return api.FetchPythonArtifact(version)
 		}
+	case isRust(m.language):
+		m.resolveArtifact = func(version string) (api.File, error) {
+			return api.FetchRustArtifact(version)
+		}
 	case isNode(m.language):
 		m.resolveArtifact = func(version string) (api.File, error) {
 			return api.FetchNodeArtifact(version)
@@ -148,6 +152,10 @@ func isClang(lang utils.Language) bool {
 
 func isPython(lang utils.Language) bool {
 	return strings.EqualFold(strings.TrimSpace(lang.Name), utils.Python)
+}
+
+func isRust(lang utils.Language) bool {
+	return strings.EqualFold(strings.TrimSpace(lang.Name), utils.Rust)
 }
 
 func isNode(lang utils.Language) bool {
@@ -200,6 +208,13 @@ func fetchClangVersionsCmd() tea.Cmd {
 	}
 }
 
+func fetchRustVersionsCmd() tea.Cmd {
+	return func() tea.Msg {
+		releases, err := api.FetchRustReleases()
+		return VersionsFetchedMsg{Releases: releases, Err: err}
+	}
+}
+
 func (m SelectedInstalledModel) fetchVersionsCmd() tea.Cmd {
 	switch {
 	case isGo(m.language):
@@ -208,6 +223,8 @@ func (m SelectedInstalledModel) fetchVersionsCmd() tea.Cmd {
 		return fetchClangVersionsCmd()
 	case isPython(m.language):
 		return fetchPythonVersionsCmd()
+	case isRust(m.language):
+		return fetchRustVersionsCmd()
 	case isNode(m.language):
 		return fetchNodeVersionsCmd()
 	case isDocker(m.language):
@@ -603,6 +620,8 @@ func (m *SelectedInstalledModel) startDownload(entry versionEntry) tea.Cmd {
 			installDir, instErr = utils.InstallClangArchive(ctx, archivePath, filename, report)
 		case isPython(m.language):
 			installDir, instErr = utils.InstallPythonArchive(ctx, archivePath, filename, report)
+		case isRust(m.language):
+			installDir, instErr = utils.InstallRustArchive(ctx, archivePath, filename, report)
 		case isNode(m.language):
 			installDir, instErr = utils.InstallNodeArchive(ctx, archivePath, filename, report)
 		case isDocker(m.language):
@@ -661,6 +680,8 @@ func buildVersionEntries(lang utils.Language, currentOverride string, releases [
 			current = extractClangVersion(lang.Version)
 		case isPython(lang):
 			current = extractPythonVersion(lang.Version)
+		case isRust(lang):
+			current = currentRustVersion(lang)
 		case isNode(lang):
 			current = extractNodeVersion(lang.Version)
 		case isDocker(lang):
@@ -721,6 +742,19 @@ func extractClangVersion(versionOutput string) string {
 
 func extractPythonVersion(versionOutput string) string {
 	return extractDottedVersion(versionOutput)
+}
+
+func extractRustVersion(versionOutput string) string {
+	return extractDottedVersion(versionOutput)
+}
+
+func currentRustVersion(lang utils.Language) string {
+	if managed := utils.ManagedRustVersion(); managed != "" {
+		if v := extractRustVersion(managed); v != "" {
+			return v
+		}
+	}
+	return extractRustVersion(lang.Version)
 }
 
 func extractNodeVersion(versionOutput string) string {
