@@ -169,12 +169,23 @@ func ManagedToolchainVersion(binary string) string {
 	if binary == "" {
 		return ""
 	}
-	name := binary
-	if runtime.GOOS == "windows" && !strings.HasSuffix(strings.ToLower(name), ".exe") {
-		name += ".exe"
+	binName := binary
+	if binary == "python" && runtime.GOOS != "windows" {
+		binName = "python3"
 	}
-	exe := filepath.Join(SwapFilesDir(), binary, name)
-	return runVersionCommand(exe, name)
+	return ManagedBinaryVersion(toolPathDir(binary), binName)
+}
+
+func ManagedBinaryVersion(relDir, binary string) string {
+	exe := filepath.Join(SwapFilesDir(), relDir, binary)
+	if runtime.GOOS == "windows" && !strings.HasSuffix(strings.ToLower(exe), ".exe") {
+		exe += ".exe"
+	}
+	return runVersionCommand(exe, binary)
+}
+
+func ManagedClangVersion() string {
+	return ManagedBinaryVersion(filepath.Join("llvm", "bin"), "clang")
 }
 
 func ManagedRustVersion() string {

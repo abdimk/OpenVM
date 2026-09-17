@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+
+	ui "github.com/abdimk/openvm/cmd/ui"
 )
 
 func TestFirstSemverField(t *testing.T) {
@@ -127,4 +129,57 @@ func TestRepairMarkerPaths(t *testing.T) {
 			t.Errorf("empty marker for %s", spec.dir)
 		}
 	}
+}
+
+func TestNameToToolDir(t *testing.T) {
+	cases := []struct {
+		name   string
+		want   string
+		wantOK bool
+	}{
+		{Go, "go", true},
+		{Python, "python", true},
+		{Node, "node", true},
+		{Rust, "rust", true},
+		{Gpp, "llvm", true},
+		{Gcc, "llvm", true},
+		{Docker, "docker", true},
+		{Kubernetes, "kubectl", true},
+		{"NotARealTool", "", false},
+	}
+	for _, c := range cases {
+		dir, ok := nameToToolDir(c.name)
+		if dir != c.want || ok != c.wantOK {
+			t.Errorf("nameToToolDir(%q) = %q, %v; want %q, %v", c.name, dir, ok, c.want, c.wantOK)
+		}
+	}
+}
+
+func TestInstalledConfirmView(t *testing.T) {
+	m := NewInstalledModel()
+	m.langs = []Language{{Name: Go, Version: "go1.24.3", Path: "go"}}
+	m.languages = ui.New("", []ui.Item{{TitleText: Go, DescriptionText: "go1.24.3"}}, 80, 20)
+	m.confirming = true
+	m.confirmYes = true
+
+	view := m.ConfirmationView()
+	if !strings.Contains(view, "Are you sure you wanted to remove Go ?") {
+		t.Errorf("confirmation missing prompt, got %q", view)
+	}
+	if !strings.Contains(view, "Yes") {
+		t.Errorf("confirmation missing [Yes] control, got %q", view)
+	}
+	if !strings.Contains(view, "No") {
+		t.Errorf("confirmation missing [No] control, got %q", view)
+	}
+
+	upd, _ := m.Update(UninstalledMsg{Name: Go})
+	m2 := upd.(InstalledModel)
+	if m2.Confirming() {
+		t.Errorf("expected confirming false after uninstall")
+	}
+	if hint := CurrentFooterHint(); hint.Text == "" {
+		t.Errorf("expected a footer hint after uninstall")
+	}
+	ClearFooterHint()
 }

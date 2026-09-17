@@ -675,15 +675,15 @@ func buildVersionEntries(lang utils.Language, currentOverride string, releases [
 	if current == "" {
 		switch {
 		case isGo(lang):
-			current = extractGoVersion(lang.Version)
+			current = currentGoVersion(lang)
 		case isClang(lang):
-			current = extractClangVersion(lang.Version)
+			current = currentClangVersion(lang)
 		case isPython(lang):
-			current = extractPythonVersion(lang.Version)
+			current = currentPythonVersion(lang)
 		case isRust(lang):
 			current = currentRustVersion(lang)
 		case isNode(lang):
-			current = extractNodeVersion(lang.Version)
+			current = currentNodeVersion(lang)
 		case isDocker(lang):
 			current = currentDockerVersion(lang)
 		case isKubernetes(lang):
@@ -784,6 +784,42 @@ func currentDockerVersion(lang utils.Language) string {
 		}
 	}
 	return extractDockerVersion(lang.Version)
+}
+
+func currentGoVersion(lang utils.Language) string {
+	if managed := utils.ManagedToolchainVersion("go"); managed != "" {
+		if v := extractGoVersion(managed); v != "" {
+			return v
+		}
+	}
+	return extractGoVersion(lang.Version)
+}
+
+func currentClangVersion(lang utils.Language) string {
+	if managed := utils.ManagedClangVersion(); managed != "" {
+		if v := extractClangVersion(managed); v != "" {
+			return v
+		}
+	}
+	return extractClangVersion(lang.Version)
+}
+
+func currentPythonVersion(lang utils.Language) string {
+	if managed := utils.ManagedToolchainVersion("python"); managed != "" {
+		if v := extractPythonVersion(managed); v != "" {
+			return v
+		}
+	}
+	return extractPythonVersion(lang.Version)
+}
+
+func currentNodeVersion(lang utils.Language) string {
+	if managed := utils.ManagedToolchainVersion("node"); managed != "" {
+		if v := extractNodeVersion(managed); v != "" {
+			return v
+		}
+	}
+	return extractNodeVersion(lang.Version)
 }
 
 var kubernetesVersionOutputRe = regexp.MustCompile(`v[0-9]+\.[0-9]+\.[0-9]+`)

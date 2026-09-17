@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -15,11 +16,18 @@ type LanguageSelectedMsg struct {
 	Language Language
 }
 
+type UninstalledMsg struct {
+	Name string
+	Err  error
+}
+
 type InstalledModel struct {
-	width     int
-	height    int
-	languages *ui.ListModel
-	langs     []Language
+	width      int
+	height     int
+	languages  *ui.ListModel
+	langs      []Language
+	confirming bool
+	confirmYes bool
 }
 
 func NewInstalledModel() InstalledModel {
@@ -79,10 +87,49 @@ func (m InstalledModel) selectedLanguage() (Language, bool) {
 
 func (m InstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case UninstalledMsg:
+		m.confirming = false
+		if msg.Err != nil {
+			EmitFooterHintColored(fmt.Sprintf("uninstall failed: %v • esc back", msg.Err), "#ff5555")
+		} else {
+			EmitFooterHint(fmt.Sprintf("%s uninstalled • esc back", msg.Name))
+		}
+		return m, m.refresh()
+
 	case tea.KeyMsg:
+		if m.confirming {
+			switch msg.String() {
+			case "left":
+				m.confirmYes = true
+				return m, nil
+			case "right":
+				m.confirmYes = false
+				return m, nil
+			case "esc", "backspace":
+				m.confirming = false
+				return m, nil
+			case "enter":
+				if m.confirmYes {
+					if lang, ok := m.selectedLanguage(); ok {
+						m.confirming = false
+						return m, m.uninstallCmd(lang.Name)
+					}
+				}
+				m.confirming = false
+				return m, nil
+			}
+			return m, nil
+		}
+
 		switch msg.String() {
 		case "esc", "backspace":
 			return m, func() tea.Msg { return BackMsg{} }
+		case "u":
+			if _, ok := m.selectedLanguage(); ok {
+				m.confirming = true
+				m.confirmYes = true
+				return m, nil
+			}
 		case "enter":
 			if lang, ok := m.selectedLanguage(); ok {
 				return m, func() tea.Msg { return LanguageSelectedMsg{Language: lang} }
@@ -95,6 +142,71 @@ func (m InstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = m.languages.Update(msg)
 	}
 	return m, cmd
+}
+
+func (m InstalledModel) uninstallCmd(name string) tea.Cmd {
+	EmitFooterHint(fmt.Sprintf("uninstalling %s...", name))
+	return func() tea.Msg {
+		return UninstalledMsg{Name: name, Err: UninstallTool(name)}
+	}
+}
+
+func (m *InstalledModel) refresh() tea.Cmd {
+	m.langs = GetLanguages()
+
+	items := make([]ui.Item, 0, len(m.langs))
+	for _, lang := range m.langs {
+		items = append(items, ui.Item{
+			TitleText:       lang.Name,
+			DescriptionText: strings.TrimSpace(lang.Version),
+		})
+	}
+
+	if m.languages != nil {
+		return m.languages.SetItems(items)
+	}
+	return nil
+}
+
+func (m InstalledModel) Confirming() bool {
+	return m.confirming
+}
+
+func (m InstalledModel) ConfirmationView() string {
+	name := ""
+	if lang, ok := m.selectedLanguage(); ok {
+		name = lang.Name
+	}
+
+	gray := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	green := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#00ff00"))
+	pink := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("204"))
+	pinkBg := pink.Background(lipgloss.Color("235"))
+	dim := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("241"))
+
+	yes := dim.Render("Yes")
+	no := dim.Render("No")
+	if m.confirmYes {
+		yes = green.Render("Yes")
+	} else {
+		no = pinkBg.Render("No")
+	}
+
+	bracket := func(s string) string {
+		return gray.Render("[") + s + gray.Render("]")
+	}
+
+	return bracket(yes) + gray.Render(" | ") + bracket(no) +
+		"  " +
+		pink.Render(fmt.Sprintf("Are you sure you wanted to remove %s ?", name)) +
+		"   " +
+		gray.Render("←/→ choose • enter confirm • esc back")
 }
 
 func (m InstalledModel) buildListTitle() string {

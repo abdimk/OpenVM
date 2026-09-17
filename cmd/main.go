@@ -323,6 +323,7 @@ func (m model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			case "Installed":
 				m.installed = utils.NewInstalledModel()
+				utils.ClearFooterHint()
 				m.screen = InstalledScreen
 				m.updateLayout()
 
@@ -397,7 +398,19 @@ func (m model) footerText() string {
 		return "esc • back"
 
 	case InstalledScreen:
-		return "↑/k up • ↓/j down • enter select • esc back"
+		if m.installed.Confirming() {
+			return m.installed.ConfirmationView()
+		}
+		if hint := utils.CurrentFooterHint(); hint.Text != "" {
+			if hint.Color != "" {
+				return lipgloss.NewStyle().
+					Foreground(lipgloss.Color(hint.Color)).
+					Bold(true).
+					Render(hint.Text)
+			}
+			return hint.Text
+		}
+		return "↑/k up • ↓/j down • enter select • u uninstall • esc back"
 
 	case Version:
 		return "esc • back"

@@ -194,6 +194,8 @@ func extractTarZst(ctx context.Context, archivePath, destDir string) error {
 func extractTarStream(ctx context.Context, r io.Reader, destDir string) error {
 	tr := tar.NewReader(r)
 
+	var symlinks []tarSymlinkEntry
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -203,7 +205,7 @@ func extractTarStream(ctx context.Context, r io.Reader, destDir string) error {
 
 		hdr, err := tr.Next()
 		if err == io.EOF {
-			return nil
+			break
 		}
 		if err != nil {
 			return err
@@ -234,12 +236,62 @@ func extractTarStream(ctx context.Context, r io.Reader, destDir string) error {
 			}
 			out.Close()
 		case tar.TypeSymlink:
-			_ = os.Remove(target)
-			if err := os.Symlink(hdr.Linkname, target); err != nil && !os.IsExist(err) {
-				return err
-			}
+			symlinks = append(symlinks, tarSymlinkEntry{target: target, linkname: hdr.Linkname})
 		}
 	}
+
+	for _, s := range symlinks {
+		if err := createSymlink(s.target, s.linkname); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+type tarSymlinkEntry struct {
+	target   string
+	linkname string
+}
+
+func createSymlink(target, linkname string) error {
+	_ = os.Remove(target)
+	if err := os.Symlink(linkname, target); err == nil || os.IsExist(err) {
+		return nil
+	}
+	return copySymlinkReferent(target, linkname)
+}
+
+func copySymlinkReferent(target, linkname string) error {
+	ref := linkname
+	if !filepath.IsAbs(ref) {
+		ref = filepath.Join(filepath.Dir(target), ref)
+	}
+	ref = filepath.Clean(ref)
+
+	fi, err := os.Stat(ref)
+	if err != nil || fi.IsDir() {
+		return nil
+	}
+
+	in, err := os.Open(ref)
+	if err != nil {
+		return nil
+	}
+	defer in.Close()
+
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		return err
+	}
+
+	out, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, fi.Mode())
+	if err != nil {
+		return nil
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, in)
+	return err
 }
 
 func swapWindows(srcRoot string) (string, error) {
