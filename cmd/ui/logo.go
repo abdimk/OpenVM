@@ -109,7 +109,7 @@ func renderSixelLogo(maxWidth int) string {
 		return ""
 	}
 
-	const cellPx = 8
+	const cellPx = 12
 	targetW := maxWidth * cellPx
 	if targetW > srcW {
 		targetW = srcW
@@ -188,8 +188,8 @@ func renderOpenVMLogo(maxWidth int) string {
 			tr, tg, tb, ta := img.avgBlock(x0, x1, y0, mid)
 			br, bg, bb, ba := img.avgBlock(x0, x1, mid, y1)
 
-			tr, tg, tb = blendToBlack(tr, tg, tb, ta)
-			br, bg, bb = blendToBlack(br, bg, bb, ba)
+			tr, tg, tb = blendOverBg(tr, tg, tb, ta)
+			br, bg, bb = blendOverBg(br, bg, bb, ba)
 
 			b.WriteString(halfCell(tr, tg, tb, ta, br, bg, bb, ba))
 		}
@@ -201,7 +201,7 @@ func renderOpenVMLogo(maxWidth int) string {
 }
 
 func halfCell(tr, tg, tb, ta, br, bg, bb, ba float64) string {
-	const alphaMin = 0.45
+	const alphaMin = 0.12
 
 	topStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(rgbHex(tr, tg, tb)))
 
@@ -221,11 +221,19 @@ func halfCell(tr, tg, tb, ta, br, bg, bb, ba float64) string {
 	}
 }
 
-func blendToBlack(r, g, b, a float64) (float64, float64, float64) {
+var logoBg = logoPixel{r: 40, g: 44, b: 52}
+
+func blendOverBg(r, g, b, a float64) (float64, float64, float64) {
 	if a >= 1 {
 		return r, g, b
 	}
-	return r * a, g * a, b * a
+	if a <= 0 {
+		return float64(logoBg.r), float64(logoBg.g), float64(logoBg.b)
+	}
+	inv := 1 - a
+	return r*a + float64(logoBg.r)*inv,
+		g*a + float64(logoBg.g)*inv,
+		b*a + float64(logoBg.b)*inv
 }
 
 func rgbHex(r, g, b float64) string {
