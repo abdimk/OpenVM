@@ -19,8 +19,7 @@ type CurrentVersionModel struct {
 
 func NewCurrentVersionModel() CurrentVersionModel {
 	pager := ui.NewPager("Current Version", "")
-	pager.HideHeader()
-	pager.HideFooter()
+	pager.ShowPlainHeader("Current Version", machineLabel())
 	return CurrentVersionModel{
 		loading: true,
 		pager:   pager,

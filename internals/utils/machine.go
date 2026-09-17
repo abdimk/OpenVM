@@ -18,3 +18,7 @@ func GetMachineType() string {
 		return "Unknown (" + runtime.GOOS + ")"
 	}
 }
+
+func machineLabel() string {
+	return "Machine: [" + GetMachineType() + "]"
+}

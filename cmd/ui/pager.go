@@ -28,12 +28,14 @@ var (
 )
 
 type Pager struct {
-	title      string
-	content    string
-	showHeader bool
-	showFooter bool
-	ready      bool
-	viewport   viewport.Model
+	title       string
+	titleRight  string
+	content     string
+	plainHeader bool
+	showHeader  bool
+	showFooter  bool
+	ready       bool
+	viewport    viewport.Model
 }
 
 func NewPager(title, content string) Pager {
@@ -50,6 +52,14 @@ func (p *Pager) HideHeader() {
 }
 
 func (p *Pager) HideFooter() {
+	p.showFooter = false
+}
+
+func (p *Pager) ShowPlainHeader(title, right string) {
+	p.title = title
+	p.titleRight = right
+	p.plainHeader = true
+	p.showHeader = true
 	p.showFooter = false
 }
 
@@ -134,6 +144,33 @@ func (p *Pager) SetTitle(title string) {
 }
 
 func (p Pager) headerView() string {
+	if p.plainHeader {
+		leftBlock := lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#ffffff")).
+			PaddingLeft(2).
+			PaddingBottom(0).
+			Render(p.title)
+
+		rightBlock := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#ffffff")).
+			PaddingRight(2).
+			PaddingLeft(1).
+			Render(p.titleRight)
+
+		gap := max(
+			0,
+			p.viewport.Width()-lipgloss.Width(leftBlock)-lipgloss.Width(rightBlock),
+		)
+
+		return lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			leftBlock,
+			strings.Repeat(" ", gap),
+			rightBlock,
+		)
+	}
+
 	title := pagerTitleStyle.Render(p.title)
 
 	line := strings.Repeat(

@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"fmt"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -112,7 +111,7 @@ func (m InstallModel) buildListTitle() string {
 		Foreground(lipgloss.Color("#ffffff")).
 		PaddingRight(2).
 		PaddingLeft(1).
-		Render(fmt.Sprintf("Machine: [%s]", GetMachineType()))
+		Render(machineLabel())
 
 	leftW := lipgloss.Width(leftBlock)
 	rightW := lipgloss.Width(rightBlock)

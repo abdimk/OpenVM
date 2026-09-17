@@ -22,8 +22,7 @@ type UpdateCheckModel struct {
 
 func NewUpdateCheckModel() UpdateCheckModel {
 	pager := ui.NewPager("Check For Update", "")
-	pager.HideHeader()
-	pager.HideFooter()
+	pager.ShowPlainHeader("Check For Update", machineLabel())
 	return UpdateCheckModel{
 		loading: true,
 		pager:   pager,
@@ -59,6 +58,7 @@ func (m UpdateCheckModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	if m.loading {
+		m.pager.SetContent(m.renderLines())
 		var spinnerCmd tea.Cmd
 		m.spinner, spinnerCmd = m.spinner.Update(msg)
 		cmds = append(cmds, spinnerCmd)
@@ -81,7 +81,7 @@ func (m *UpdateCheckModel) SetSize(width, height int) {
 
 func (m UpdateCheckModel) renderLines() string {
 	if !m.done {
-		return waitingView()
+		return lipgloss.NewStyle().PaddingLeft(2).Render(m.spinner.View())
 	}
 	var b strings.Builder
 	for _, line := range m.lines {
@@ -92,9 +92,6 @@ func (m UpdateCheckModel) renderLines() string {
 }
 
 func (m UpdateCheckModel) View() tea.View {
-	if !m.done {
-		return tea.NewView(lipgloss.NewStyle().PaddingLeft(2).Render(m.spinner.View()))
-	}
 	return tea.NewView(m.pager.View())
 }
 

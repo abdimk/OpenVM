@@ -22,8 +22,7 @@ type DoctorModel struct {
 
 func NewDoctorModel() DoctorModel {
 	pager := ui.NewPager("Doctor", "")
-	pager.HideHeader()
-	pager.HideFooter()
+	pager.ShowPlainHeader("Doctor", machineLabel())
 	return DoctorModel{
 		loading: true,
 		pager:   pager,
@@ -59,6 +58,7 @@ func (m DoctorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	if m.loading {
+		m.pager.SetContent(m.renderLines())
 		var spinnerCmd tea.Cmd
 		m.spinner, spinnerCmd = m.spinner.Update(msg)
 		cmds = append(cmds, spinnerCmd)
@@ -81,7 +81,7 @@ func (m *DoctorModel) SetSize(width, height int) {
 
 func (m DoctorModel) renderLines() string {
 	if !m.done {
-		return waitingView()
+		return lipgloss.NewStyle().PaddingLeft(2).Render(m.spinner.View())
 	}
 	var b strings.Builder
 	for _, line := range m.lines {
@@ -92,9 +92,6 @@ func (m DoctorModel) renderLines() string {
 }
 
 func (m DoctorModel) View() tea.View {
-	if !m.done {
-		return tea.NewView(lipgloss.NewStyle().PaddingLeft(2).Render(m.spinner.View()))
-	}
 	return tea.NewView(m.pager.View())
 }
 
