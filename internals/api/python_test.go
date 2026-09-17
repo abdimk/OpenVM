@@ -2,6 +2,9 @@ package api
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -173,11 +176,107 @@ func TestPythonArtifactForWindowsAMD64FromManifest(t *testing.T) {
 	}
 }
 
-func TestPythonArtifactForUnsupportedOSReturnsFalse(t *testing.T) {
-	for _, os := range []string{"darwin", "linux"} {
-		if _, ok := pythonArtifactForMachine("3.14.7", os, "arm64"); ok {
-			t.Errorf("pythonArtifactForMachine should return false for %s", os)
+func TestPythonStandaloneTriple(t *testing.T) {
+	cases := []struct {
+		goos, goarch string
+		want         string
+		ok           bool
+	}{
+		{"linux", "amd64", "x86_64-unknown-linux-gnu", true},
+		{"linux", "arm64", "aarch64-unknown-linux-gnu", true},
+		{"linux", "arm", "armv7-unknown-linux-gnueabihf", true},
+		{"linux", "ppc64le", "ppc64le-unknown-linux-gnu", true},
+		{"linux", "s390x", "s390x-unknown-linux-gnu", true},
+		{"linux", "386", "", false},
+		{"darwin", "amd64", "x86_64-apple-darwin", true},
+		{"darwin", "arm64", "aarch64-apple-darwin", true},
+		{"darwin", "386", "", false},
+		{"freebsd", "amd64", "", false},
+	}
+	for _, c := range cases {
+		got, ok := pythonStandaloneTriple(c.goos, c.goarch)
+		if ok != c.ok {
+			t.Errorf("pythonStandaloneTriple(%q, %q) ok = %v, want %v", c.goos, c.goarch, ok, c.ok)
+			continue
 		}
+		if ok && got != c.want {
+			t.Errorf("pythonStandaloneTriple(%q, %q) = %q, want %q", c.goos, c.goarch, got, c.want)
+		}
+	}
+}
+
+func TestPythonStandaloneArtifactAcrossTags(t *testing.T) {
+	const filename = "cpython-3.14.2+20250502-x86_64-unknown-linux-gnu-install_only.tar.gz"
+	const wantSHA = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/tags":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`[
+				{"ref": "refs/tags/20181218"},
+				{"ref": "refs/tags/20230910"},
+				{"ref": "refs/tags/20250502"},
+				{"ref": "refs/tags/20260901"}
+			]`))
+		case strings.HasPrefix(r.URL.Path, "/dl/"):
+			parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/dl/"), "/")
+			if len(parts) != 2 {
+				http.NotFound(w, r)
+				return
+			}
+			tag, name := parts[0], parts[1]
+			if tag == "20250502" {
+				if name == "SHA256SUMS" {
+					_, _ = w.Write([]byte(wantSHA + "  " + filename + "\n"))
+					return
+				}
+				if strings.HasSuffix(name, "-install_only.tar.gz") {
+					return
+				}
+			}
+			http.NotFound(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	cfg := pythonStandaloneConfig{
+		client:  srv.Client(),
+		tagsURL: srv.URL + "/tags",
+		base:    srv.URL + "/dl",
+	}
+
+	file, ok := cfg.artifact("3.14.2", "linux", "amd64")
+	if !ok {
+		t.Fatal("expected artifact for linux/amd64")
+	}
+	if file.Filename != filename {
+		t.Errorf("filename = %q, want %q", file.Filename, filename)
+	}
+	if file.URL != srv.URL+"/dl/20250502/"+filename {
+		t.Errorf("url = %q, want newest matching tag", file.URL)
+	}
+	if file.SHA256 != wantSHA {
+		t.Errorf("sha256 = %q, want %q", file.SHA256, wantSHA)
+	}
+	if file.OS != "linux" || file.Arch != "amd64" || file.Kind != "archive" || file.Version != "3.14.2" {
+		t.Errorf("got %s/%s kind=%s version=%s", file.OS, file.Arch, file.Kind, file.Version)
+	}
+}
+
+func TestPythonStandaloneArtifactUnsupportedArchReturnsFalse(t *testing.T) {
+	cfg := pythonStandaloneConfig{
+		client:  &http.Client{},
+		tagsURL: pythonStandaloneTagsURL,
+		base:    pythonStandaloneBase,
+	}
+	if _, ok := cfg.artifact("3.14.2", "linux", "386"); ok {
+		t.Error("expected no artifact for unsupported linux/386")
+	}
+	if _, ok := cfg.artifact("3.14.2", "freebsd", "amd64"); ok {
+		t.Error("expected no artifact for unsupported freebsd")
 	}
 }
 

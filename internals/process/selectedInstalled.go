@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
@@ -50,7 +52,7 @@ type SelectedInstalledModel struct {
 	releases []api.Release
 
 	loading bool
-	err      error
+	err     error
 
 	resolving bool
 
@@ -74,7 +76,7 @@ type SelectedInstalledModel struct {
 func NewSelectedInstalledModel(lang utils.Language) SelectedInstalledModel {
 	m := SelectedInstalledModel{
 		language: lang,
-		loading:  isGo(lang) || isClang(lang) || isPython(lang) || isNode(lang),
+		loading:  isGo(lang) || isClang(lang) || isPython(lang) || isNode(lang) || isDocker(lang) || isKubernetes(lang),
 		spinner:  ui.SpinnerModel("Fetching available versions..."),
 		progress: ui.NewProgress(),
 		phase:    utils.PhaseIdle,
@@ -122,6 +124,14 @@ func NewSelectedInstalledModel(lang utils.Language) SelectedInstalledModel {
 		m.resolveArtifact = func(version string) (api.File, error) {
 			return api.FetchNodeArtifact(version)
 		}
+	case isDocker(m.language):
+		m.resolveArtifact = func(version string) (api.File, error) {
+			return api.FetchDockerArtifact(version)
+		}
+	case isKubernetes(m.language):
+		m.resolveArtifact = func(version string) (api.File, error) {
+			return api.FetchKubernetesArtifact(version)
+		}
 	}
 	m.versions = ui.New("", nil, 80, 20)
 	return m
@@ -142,6 +152,14 @@ func isPython(lang utils.Language) bool {
 
 func isNode(lang utils.Language) bool {
 	return strings.EqualFold(strings.TrimSpace(lang.Name), utils.Node)
+}
+
+func isDocker(lang utils.Language) bool {
+	return strings.EqualFold(strings.TrimSpace(lang.Name), utils.Docker)
+}
+
+func isKubernetes(lang utils.Language) bool {
+	return strings.EqualFold(strings.TrimSpace(lang.Name), utils.Kubernetes)
 }
 
 func (m SelectedInstalledModel) languageLabel() string {
@@ -192,6 +210,10 @@ func (m SelectedInstalledModel) fetchVersionsCmd() tea.Cmd {
 		return fetchPythonVersionsCmd()
 	case isNode(m.language):
 		return fetchNodeVersionsCmd()
+	case isDocker(m.language):
+		return fetchDockerVersionsCmd()
+	case isKubernetes(m.language):
+		return fetchKubernetesVersionsCmd()
 	default:
 		return nil
 	}
@@ -204,6 +226,20 @@ func fetchNodeVersionsCmd() tea.Cmd {
 		for _, info := range infos {
 			releases = append(releases, api.Release{Version: info.Version, Stable: true, Date: info.Date, LTS: info.LTS})
 		}
+		return VersionsFetchedMsg{Releases: releases, Err: err}
+	}
+}
+
+func fetchDockerVersionsCmd() tea.Cmd {
+	return func() tea.Msg {
+		releases, err := api.FetchDockerReleases()
+		return VersionsFetchedMsg{Releases: releases, Err: err}
+	}
+}
+
+func fetchKubernetesVersionsCmd() tea.Cmd {
+	return func() tea.Msg {
+		releases, err := api.FetchKubernetesReleases()
 		return VersionsFetchedMsg{Releases: releases, Err: err}
 	}
 }
@@ -565,10 +601,14 @@ func (m *SelectedInstalledModel) startDownload(entry versionEntry) tea.Cmd {
 		switch {
 		case isClang(m.language):
 			installDir, instErr = utils.InstallClangArchive(ctx, archivePath, filename, report)
-			case isPython(m.language):
+		case isPython(m.language):
 			installDir, instErr = utils.InstallPythonArchive(ctx, archivePath, filename, report)
 		case isNode(m.language):
 			installDir, instErr = utils.InstallNodeArchive(ctx, archivePath, filename, report)
+		case isDocker(m.language):
+			installDir, instErr = utils.InstallDockerArchive(ctx, archivePath, filename, report)
+		case isKubernetes(m.language):
+			installDir, instErr = utils.InstallKubectlBinary(ctx, archivePath, filename, report)
 		default:
 			installDir, instErr = utils.InstallGoArchive(ctx, archivePath, filename, report)
 		}
@@ -623,6 +663,10 @@ func buildVersionEntries(lang utils.Language, currentOverride string, releases [
 			current = extractPythonVersion(lang.Version)
 		case isNode(lang):
 			current = extractNodeVersion(lang.Version)
+		case isDocker(lang):
+			current = currentDockerVersion(lang)
+		case isKubernetes(lang):
+			current = currentKubernetesVersion(lang)
 		}
 	}
 
@@ -687,6 +731,40 @@ func extractNodeVersion(versionOutput string) string {
 		}
 	}
 	return ""
+}
+
+func extractDockerVersion(versionOutput string) string {
+	for _, field := range strings.Fields(versionOutput) {
+		bare := strings.Trim(field, ",;:()")
+		if looksLikeVersion(bare) {
+			return bare
+		}
+	}
+	return ""
+}
+
+func currentDockerVersion(lang utils.Language) string {
+	if managed := utils.ManagedToolchainVersion("docker"); managed != "" {
+		if v := extractDockerVersion(managed); v != "" {
+			return v
+		}
+	}
+	return extractDockerVersion(lang.Version)
+}
+
+var kubernetesVersionOutputRe = regexp.MustCompile(`v[0-9]+\.[0-9]+\.[0-9]+`)
+
+func extractKubernetesVersion(versionOutput string) string {
+	return kubernetesVersionOutputRe.FindString(versionOutput)
+}
+
+func currentKubernetesVersion(lang utils.Language) string {
+	if managed := utils.ManagedToolchainVersion("kubectl"); managed != "" {
+		if v := extractKubernetesVersion(managed); v != "" {
+			return v
+		}
+	}
+	return extractKubernetesVersion(lang.Version)
 }
 
 func extractDottedVersion(versionOutput string) string {
@@ -923,6 +1001,23 @@ func (m SelectedInstalledModel) View() tea.View {
 
 	content.WriteString(m.buildHeader())
 	content.WriteString("\n\n")
+
+	if isDocker(m.language) {
+		if bundle, err := api.DockerBundleForMachine(runtime.GOOS, runtime.GOARCH); err == nil {
+			bundleStyle := lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#FFD700")).
+				PaddingLeft(2).
+				PaddingBottom(1)
+			content.WriteString(bundleStyle.Render(fmt.Sprintf("%s — includes: %s", bundle.Label, strings.Join(bundle.Components, ", "))))
+			content.WriteString("\n")
+			content.WriteString(lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#888888")).
+				PaddingLeft(2).
+				PaddingBottom(1).
+				Render(bundle.Notice))
+			content.WriteString("\n\n")
+		}
+	}
 
 	switch {
 	case m.loading:

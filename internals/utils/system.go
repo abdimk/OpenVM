@@ -135,22 +135,7 @@ func GetAvailable() []Language {
 }
 
 func getVersion(binary string) string {
-	var args []string
-
-	switch binary {
-	case "go", "rustc":
-		args = []string{"version"}
-	case "python3", "python", "python.exe", "py":
-		args = []string{"--version"}
-	case "node":
-		args = []string{"--version"}
-	case "g++", "gcc", "clang++", "clang":
-		args = []string{"--version"}
-	default:
-		args = []string{"--version"}
-	}
-
-	out, err := exec.Command(binary, args...).CombinedOutput()
+	out, err := exec.Command(binary, versionArgs(binary)...).CombinedOutput()
 	if err != nil {
 		return "unknown"
 	}
@@ -161,4 +146,41 @@ func getVersion(binary string) string {
 	}
 
 	return "unknown"
+}
+
+func versionArgs(binary string) []string {
+	switch binary {
+	case "go", "rustc":
+		return []string{"version"}
+	case "python3", "python", "python.exe", "py":
+		return []string{"--version"}
+	case "node":
+		return []string{"--version"}
+	case "g++", "gcc", "clang++", "clang":
+		return []string{"--version"}
+	case "kubectl", "kubectl.exe":
+		return []string{"version", "--client"}
+	default:
+		return []string{"--version"}
+	}
+}
+
+func ManagedToolchainVersion(binary string) string {
+	if binary == "" {
+		return ""
+	}
+	name := binary
+	if runtime.GOOS == "windows" && !strings.HasSuffix(strings.ToLower(name), ".exe") {
+		name += ".exe"
+	}
+	exe := filepath.Join(SwapFilesDir(), binary, name)
+	out, err := exec.Command(exe, versionArgs(name)...).CombinedOutput()
+	if err != nil {
+		return ""
+	}
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	if len(lines) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(lines[0])
 }

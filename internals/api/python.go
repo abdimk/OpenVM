@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +11,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 )
 
 const (
@@ -18,6 +21,10 @@ const (
 	pythonFTPBase = "https://www.python.org/ftp/python"
 
 	pythonMinMinor = 11
+
+	pythonStandaloneRepo    = "astral-sh/python-build-standalone"
+	pythonStandaloneBase    = "https://github.com/" + pythonStandaloneRepo + "/releases/download"
+	pythonStandaloneTagsURL = "https://api.github.com/repos/" + pythonStandaloneRepo + "/git/matching-refs/tags/20"
 )
 
 var pythonFinalVersionRe = regexp.MustCompile(`^\d+\.\d+\.\d+( final)?$`)
@@ -228,7 +235,11 @@ func pythonArtifactForMachine(version, targetOS, targetArch string) (File, bool)
 	case "windows":
 		return pythonWindowsArtifact(version, targetArch)
 	default:
-		return File{}, false
+		return pythonStandaloneConfig{
+			client:  &http.Client{Timeout: requestHTTPTimeout},
+			tagsURL: pythonStandaloneTagsURL,
+			base:    pythonStandaloneBase,
+		}.artifact(version, targetOS, targetArch)
 	}
 }
 
@@ -302,3 +313,222 @@ func fetchPythonWindowsManifest(version string) (*pythonWindowsManifest, error) 
 }
 
 var pythonHrefRe = regexp.MustCompile(`href="([^"]+)"`)
+
+var pythonStandaloneTagRe = regexp.MustCompile(`refs/tags/(20[0-9]{6})$`)
+
+var (
+	pythonStandaloneTagsMu    sync.Mutex
+	pythonStandaloneTagsCache []string
+	pythonStandaloneTagsAt    time.Time
+)
+
+type pythonStandaloneConfig struct {
+	client  *http.Client
+	tagsURL string
+	base    string
+}
+
+func pythonStandaloneTriple(goos, goarch string) (string, bool) {
+	switch goos {
+	case "linux":
+		switch goarch {
+		case "amd64":
+			return "x86_64-unknown-linux-gnu", true
+		case "arm64":
+			return "aarch64-unknown-linux-gnu", true
+		case "arm":
+			return "armv7-unknown-linux-gnueabihf", true
+		case "ppc64le":
+			return "ppc64le-unknown-linux-gnu", true
+		case "s390x":
+			return "s390x-unknown-linux-gnu", true
+		}
+	case "darwin":
+		switch goarch {
+		case "amd64":
+			return "x86_64-apple-darwin", true
+		case "arm64":
+			return "aarch64-apple-darwin", true
+		}
+	}
+	return "", false
+}
+
+func (c pythonStandaloneConfig) artifact(version, targetOS, targetArch string) (File, bool) {
+	triple, ok := pythonStandaloneTriple(targetOS, targetArch)
+	if !ok {
+		return File{}, false
+	}
+
+	tags, err := c.tags()
+	if err != nil || len(tags) == 0 {
+		return File{}, false
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	var mu sync.Mutex
+	best := ""
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 12)
+
+	for _, tag := range tags {
+		wg.Add(1)
+		go func(tag string) {
+			defer wg.Done()
+			select {
+			case sem <- struct{}{}:
+			case <-ctx.Done():
+				return
+			}
+			defer func() { <-sem }()
+
+			if !c.hasAsset(pythonStandaloneAssetURL(c.base, tag, version, triple)) {
+				return
+			}
+			mu.Lock()
+			if best == "" || tag > best {
+				best = tag
+			}
+			mu.Unlock()
+		}(tag)
+	}
+
+	done := make(chan struct{})
+	go func() { wg.Wait(); close(done) }()
+
+	select {
+	case <-ctx.Done():
+		return File{}, false
+	case <-done:
+	}
+
+	if best == "" {
+		return File{}, false
+	}
+
+	name := pythonStandaloneAssetName(version, best, triple)
+
+	sha := ""
+	if checksums, err := c.shaSums(best); err == nil {
+		sha = checksums[name]
+	}
+
+	return File{
+		Filename: name,
+		OS:       targetOS,
+		Arch:     targetArch,
+		Version:  version,
+		SHA256:   sha,
+		Kind:     "archive",
+		URL:      pythonStandaloneAssetURL(c.base, best, version, triple),
+	}, true
+}
+
+func (c pythonStandaloneConfig) tags() ([]string, error) {
+	if c.tagsURL == pythonStandaloneTagsURL {
+		pythonStandaloneTagsMu.Lock()
+		defer pythonStandaloneTagsMu.Unlock()
+		if len(pythonStandaloneTagsCache) > 0 && time.Since(pythonStandaloneTagsAt) < 10*time.Minute {
+			return pythonStandaloneTagsCache, nil
+		}
+	}
+
+	client := c.client
+	if client == nil {
+		client = &http.Client{Timeout: requestHTTPTimeout}
+	}
+
+	resp, err := client.Get(c.tagsURL)
+	if err != nil {
+		return nil, fmt.Errorf("fetching python build-standalone tags: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("fetching python build-standalone tags: unexpected status %s", resp.Status)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var refs []struct {
+		Ref string `json:"ref"`
+	}
+	if err := json.Unmarshal(body, &refs); err != nil {
+		return nil, err
+	}
+
+	seen := make(map[string]bool)
+	var tags []string
+	for _, r := range refs {
+		if m := pythonStandaloneTagRe.FindStringSubmatch(r.Ref); m != nil && !seen[m[1]] {
+			seen[m[1]] = true
+			tags = append(tags, m[1])
+		}
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(tags)))
+
+	if c.tagsURL == pythonStandaloneTagsURL {
+		pythonStandaloneTagsCache = tags
+		pythonStandaloneTagsAt = time.Now()
+	}
+	return tags, nil
+}
+
+func (c pythonStandaloneConfig) hasAsset(url string) bool {
+	client := c.client
+	if client == nil {
+		client = &http.Client{Timeout: requestHTTPTimeout}
+	}
+	req, err := http.NewRequest(http.MethodHead, url, nil)
+	if err != nil {
+		return false
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+	resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
+}
+
+func (c pythonStandaloneConfig) shaSums(tag string) (map[string]string, error) {
+	client := c.client
+	if client == nil {
+		client = &http.Client{Timeout: requestHTTPTimeout}
+	}
+
+	resp, err := client.Get(fmt.Sprintf("%s/%s/SHA256SUMS", c.base, tag))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("fetching python build-standalone checksums: unexpected status %s", resp.Status)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	checksums := make(map[string]string)
+	for _, line := range strings.Split(string(body), "\n") {
+		parts := strings.Fields(line)
+		if len(parts) < 2 {
+			continue
+		}
+		filename := strings.TrimPrefix(parts[1], "./")
+		checksums[filename] = parts[0]
+	}
+	return checksums, nil
+}
+
+func pythonStandaloneAssetName(version, tag, triple string) string {
+	return fmt.Sprintf("cpython-%s+%s-%s-install_only.tar.gz", version, tag, triple)
+}
+
+func pythonStandaloneAssetURL(base, tag, version, triple string) string {
+	return fmt.Sprintf("%s/%s/%s", base, tag, pythonStandaloneAssetName(version, tag, triple))
+}
