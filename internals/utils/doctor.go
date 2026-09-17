@@ -96,38 +96,54 @@ func (m DoctorModel) View() tea.View {
 }
 
 func doctorLines() []string {
+	okMark := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#00ff00")).
+		Render("[ok]")
+	warnMark := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#FFA500")).
+		Render("[warn]")
+	errMark := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#ff5555")).
+		Render("[err]")
+
 	var lines []string
 
 	exe, err := os.Executable()
 	if err != nil {
-		lines = append(lines, fmt.Sprintf("[err] could not locate the OpenVM executable: %v", err))
+		lines = append(lines, fmt.Sprintf("%s could not locate the OpenVM executable: %v", errMark, err))
 	} else {
-		lines = append(lines, fmt.Sprintf("[ok] OpenVM executable: %s", exe))
+		lines = append(lines, fmt.Sprintf("%s OpenVM executable: %s", okMark, exe))
 	}
 
 	swapDir := SwapFilesDir()
 	if fi, statErr := os.Stat(swapDir); statErr == nil && fi.IsDir() {
-		lines = append(lines, fmt.Sprintf("[ok] toolchain directory: %s", swapDir))
+		lines = append(lines, fmt.Sprintf("%s toolchain directory: %s", okMark, swapDir))
 	} else {
-		lines = append(lines, fmt.Sprintf("[warn] toolchain directory missing: %s", swapDir))
+		lines = append(lines, fmt.Sprintf("%s toolchain directory missing: %s", warnMark, swapDir))
 	}
 
 	if free := availableSpaceBytes(); free > 0 {
-		lines = append(lines, fmt.Sprintf("[ok] free disk space: %s", humanBytes(free)))
+		lines = append(lines, fmt.Sprintf("%s free disk space: %s", okMark, humanBytes(free)))
 	} else {
-		lines = append(lines, "[warn] could not determine free disk space")
+		lines = append(lines, fmt.Sprintf("%s could not determine free disk space", warnMark))
 	}
 
 	for _, tool := range installedToolchains() {
 		binDir := filepath.Join(swapDir, toolPathDir(tool))
 		if pathContainsDir(binDir) {
-			lines = append(lines, fmt.Sprintf("[ok] %s binaries are on PATH (%s)", tool, binDir))
+			lines = append(lines, fmt.Sprintf("%s %s binaries are on PATH (%s)", okMark, tool, binDir))
 		} else {
-			lines = append(lines, fmt.Sprintf("[warn] %s binaries not activated on PATH (%s)", tool, binDir))
+			lines = append(lines, fmt.Sprintf("%s %s binaries not activated on PATH (%s)", warnMark, tool, binDir))
 		}
 	}
 
-	lines = append(lines, "[network]")
+	lines = append(lines, "")
+	lines = append(lines, lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#ffffff")).
+		Render("Network"))
 	for _, u := range []string{
 		"https://go.dev/dl/?mode=json",
 		"https://www.python.org/ftp/python/",
@@ -138,9 +154,9 @@ func doctorLines() []string {
 		"https://dl.k8s.io/release/stable.txt",
 	} {
 		if err := probeURL(u); err != nil {
-			lines = append(lines, fmt.Sprintf("[warn] %s unreachable: %v", u, err))
+			lines = append(lines, fmt.Sprintf("%s %s unreachable: %v", warnMark, u, err))
 		} else {
-			lines = append(lines, fmt.Sprintf("[ok] %s reachable", u))
+			lines = append(lines, fmt.Sprintf("%s %s reachable", okMark, u))
 		}
 	}
 
