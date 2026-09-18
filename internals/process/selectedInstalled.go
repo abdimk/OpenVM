@@ -170,6 +170,10 @@ func isKubernetes(lang utils.Language) bool {
 	return strings.EqualFold(strings.TrimSpace(lang.Name), utils.Kubernetes)
 }
 
+func isDevTool(lang utils.Language) bool {
+	return isDocker(lang) || isKubernetes(lang)
+}
+
 func (m SelectedInstalledModel) languageLabel() string {
 	if isClang(m.language) {
 		return "Clang"
@@ -1123,17 +1127,26 @@ func (m SelectedInstalledModel) statusText() string {
 
 func (m SelectedInstalledModel) buildHeader() string {
 	if m.width <= 0 {
-		return fmt.Sprintf("Language: [%s]", m.language.Name)
+		label := "Language"
+		if isDevTool(m.language) {
+			label = "DevTool"
+		}
+		return fmt.Sprintf("%s: [%s]", label, m.language.Name)
 	}
 
 	labelStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("#ffffff"))
 
+	label := "Language:"
+	if isDevTool(m.language) {
+		label = "DevTool:"
+	}
+
 	leftBlock := labelStyle.
 		PaddingLeft(2).
 		PaddingBottom(0).
-		Render("Language:")
+		Render(label)
 
 	langStyle := lipgloss.NewStyle().
 		Bold(true).
