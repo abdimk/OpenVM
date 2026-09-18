@@ -43,6 +43,11 @@ type versionEntry struct {
 
 type artifactFn func(version string) (api.File, error)
 
+type speedSample struct {
+	at    time.Time
+	bytes int64
+}
+
 type SelectedInstalledModel struct {
 	language utils.Language
 	width    int
@@ -72,6 +77,9 @@ type SelectedInstalledModel struct {
 	progressDone   <-chan struct{}
 	seq            int
 	currentVersion string
+
+	downloadSpeed float64
+	speedSamples  []speedSample
 }
 
 func NewSelectedInstalledModel(lang utils.Language) SelectedInstalledModel {
@@ -428,17 +436,24 @@ func (m SelectedInstalledModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.Phase {
 		case utils.PhaseVerifying:
 			m.phase = utils.PhaseVerifying
+			m.downloadSpeed = 0
+			m.speedSamples = nil
 			return m, tea.Batch(m.progress.SetPercent(1.0), m.nextProgress())
 		case utils.PhaseExtracting:
 			m.phase = utils.PhaseExtracting
+			m.downloadSpeed = 0
+			m.speedSamples = nil
 			return m, m.nextProgress()
 		case utils.PhaseSwapping:
 			m.phase = utils.PhaseSwapping
+			m.downloadSpeed = 0
+			m.speedSamples = nil
 			return m, m.nextProgress()
 		default:
 			m.phase = utils.PhaseDownloading
 			m.downloaded = msg.Downloaded
 			m.total = msg.Total
+			m.recordSpeed(time.Now(), msg.Downloaded)
 			if msg.Percent >= 0 {
 				m.lastPercent = msg.Percent
 			}
@@ -551,6 +566,33 @@ func (m SelectedInstalledModel) busy() bool {
 	return false
 }
 
+func (m *SelectedInstalledModel) recordSpeed(at time.Time, downloaded int64) {
+	m.speedSamples = append(m.speedSamples, speedSample{at: at, bytes: downloaded})
+	cutoff := at.Add(-3 * time.Second)
+	for len(m.speedSamples) > 0 && m.speedSamples[0].at.Before(cutoff) {
+		m.speedSamples = m.speedSamples[1:]
+	}
+
+	if len(m.speedSamples) >= 2 {
+		first := m.speedSamples[0]
+		last := m.speedSamples[len(m.speedSamples)-1]
+		if dt := last.at.Sub(first.at).Seconds(); dt > 0 {
+			m.downloadSpeed = float64(last.bytes-first.bytes) / dt
+		}
+	}
+}
+
+func formatBytesPerSec(bps float64) string {
+	switch {
+	case bps >= 1024*1024:
+		return fmt.Sprintf("%.1f MB/s", bps/(1024*1024))
+	case bps >= 1024:
+		return fmt.Sprintf("%.0f KB/s", bps/1024)
+	default:
+		return fmt.Sprintf("%.0f B/s", bps)
+	}
+}
+
 func (m SelectedInstalledModel) Busy() bool { return m.busy() }
 
 func (m SelectedInstalledModel) Cancel() {
@@ -585,6 +627,8 @@ func (m *SelectedInstalledModel) startDownload(entry versionEntry) tea.Cmd {
 	m.downloaded = 0
 	m.total = entry.file.Size
 	m.lastPercent = 0
+	m.downloadSpeed = 0
+	m.speedSamples = nil
 	m.progress.SetPercent(0)
 
 	m.entries = []versionEntry{entry}
@@ -1098,7 +1142,11 @@ func (m SelectedInstalledModel) installInfoView() string {
 
 	b.WriteString("\n")
 
-	row("  "+m.progress.Bar(), "")
+	speedText := ""
+	if m.phase == utils.PhaseDownloading && len(m.speedSamples) >= 2 {
+		speedText = dim.Render(formatBytesPerSec(m.downloadSpeed))
+	}
+	row("  "+m.progress.Bar(), speedText)
 	b.WriteString("\n")
 
 	b.WriteString("  " + faint.Render(
