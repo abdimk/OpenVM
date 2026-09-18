@@ -38,6 +38,31 @@ func ReleasesForMachine() ([]Release, error) {
 	return out, nil
 }
 
+// ResolveFileSize fills File.Size from the artifact's Content-Length when it is
+// not already known. Best effort: leaves Size untouched on failure or when the
+// server does not report a length.
+func ResolveFileSize(file *File) error {
+	if file == nil || file.Size > 0 || file.URL == "" {
+		return nil
+	}
+
+	client := &http.Client{Timeout: requestHTTPTimeout}
+	resp, err := client.Head(file.URL)
+	if err != nil {
+		return fmt.Errorf("resolving size for %s: %w", file.Filename, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("resolving size for %s: unexpected status %s", file.Filename, resp.Status)
+	}
+
+	if resp.ContentLength > 0 {
+		file.Size = resp.ContentLength
+	}
+	return nil
+}
+
 func fetchReleases(url string) ([]Release, error) {
 	client := &http.Client{Timeout: requestHTTPTimeout}
 

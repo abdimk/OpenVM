@@ -126,7 +126,9 @@ func DownloadFile(ctx context.Context, url, destPath, wantSHA256 string, seq int
 					Percent:    pct,
 					File:       filepath.Base(destPath),
 				}:
-				default:
+				case <-ctx.Done():
+					err = fmt.Errorf("download cancelled")
+					return err
 				}
 			}
 		}
@@ -150,7 +152,9 @@ func DownloadFile(ctx context.Context, url, destPath, wantSHA256 string, seq int
 	if progressCh != nil {
 		select {
 		case progressCh <- DownloadProgressMsg{Seq: seq, Phase: PhaseVerifying, File: filepath.Base(destPath)}:
-		default:
+		case <-ctx.Done():
+			err = fmt.Errorf("download cancelled")
+			return err
 		}
 	}
 

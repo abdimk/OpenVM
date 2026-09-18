@@ -511,6 +511,9 @@ func (m *SelectedInstalledModel) resolveEntryArtifact(entry versionEntry) tea.Cm
 
 	return func() tea.Msg {
 		file, err := resolve(version)
+		if err == nil {
+			_ = api.ResolveFileSize(&file)
+		}
 		return ArtifactResolvedMsg{Entry: entry, File: file, Err: err}
 	}
 }
@@ -612,7 +615,7 @@ func (m *SelectedInstalledModel) startDownload(entry versionEntry) tea.Cmd {
 			p.Seq = seq
 			select {
 			case ch <- p:
-			default:
+			case <-ctx.Done():
 			}
 		}
 
@@ -668,7 +671,12 @@ func (m *SelectedInstalledModel) nextProgress() tea.Cmd {
 		case p := <-ch:
 			return p
 		case <-done:
-			return progressDrainDoneMsg{}
+			select {
+			case p := <-ch:
+				return p
+			default:
+				return progressDrainDoneMsg{}
+			}
 		}
 	}
 }
