@@ -1,21 +1,24 @@
-package utils
+package swap
 
 import (
 	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
+
+	"github.com/abdimk/openvm/internals/utils"
 )
 
-func InstallClangArchive(ctx context.Context, archivePath, filename string, report progressFunc) (installDir string, err error) {
+func InstallNodeArchive(ctx context.Context, archivePath, filename string, report progressFunc) (installDir string, err error) {
 	if report == nil {
-		report = func(DownloadProgressMsg) {}
+		report = func(utils.DownloadProgressMsg) {}
 	}
 
-	report(DownloadProgressMsg{Phase: PhaseExtracting, File: filename})
+	report(utils.DownloadProgressMsg{Phase: utils.PhaseExtracting, File: filename})
 
-	extractDir := filepath.Join(SwapFilesDir(), "extract_"+fmt.Sprint(time.Now().UnixNano()))
+	extractDir := filepath.Join(utils.SwapFilesDir(), "extract_"+fmt.Sprint(time.Now().UnixNano()))
 
 	defer func() {
 		if err != nil {
@@ -31,15 +34,20 @@ func InstallClangArchive(ctx context.Context, archivePath, filename string, repo
 	if entries, _ := os.ReadDir(extractDir); len(entries) == 1 && entries[0].IsDir() {
 		srcRoot = filepath.Join(extractDir, entries[0].Name())
 	}
-	if _, statErr := os.Stat(filepath.Join(srcRoot, "bin")); statErr != nil {
-		err = fmt.Errorf("archive layout unexpected: no bin/ directory found in %s", srcRoot)
+
+	marker := "node.exe"
+	if runtime.GOOS != "windows" {
+		marker = filepath.Join("bin", "node")
+	}
+	if _, statErr := os.Stat(filepath.Join(srcRoot, marker)); statErr != nil {
+		err = fmt.Errorf("archive layout unexpected: no %s found in %s", marker, srcRoot)
 		return "", err
 	}
 
-	report(DownloadProgressMsg{Phase: PhaseSwapping, File: filename})
+	report(utils.DownloadProgressMsg{Phase: utils.PhaseSwapping, File: filename})
 
-	installDir = filepath.Join(SwapFilesDir(), "llvm")
-	backupDir := filepath.Join(SwapFilesDir(), "llvm.bak")
+	installDir = filepath.Join(utils.SwapFilesDir(), "node")
+	backupDir := filepath.Join(utils.SwapFilesDir(), "node.bak")
 
 	os.RemoveAll(backupDir)
 
@@ -57,7 +65,11 @@ func InstallClangArchive(ctx context.Context, archivePath, filename string, repo
 		return "", fmt.Errorf("activating new toolchain: %w", err)
 	}
 
-	if err = activatePath(filepath.Join(installDir, "bin")); err != nil {
+	binDir := installDir
+	if runtime.GOOS != "windows" {
+		binDir = filepath.Join(installDir, "bin")
+	}
+	if err = utils.ActivatePath(binDir); err != nil {
 
 		os.RemoveAll(installDir)
 		if _, statErr := os.Stat(backupDir); statErr == nil {

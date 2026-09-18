@@ -22,6 +22,16 @@ const (
 	Kubernetes = "Kubernetes"
 )
 
+const swapFilesDir = "swap_files"
+
+func SwapFilesDir() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return swapFilesDir
+	}
+	return filepath.Join(filepath.Dir(exe), swapFilesDir)
+}
+
 var languageBinaries = map[string][]string{
 	Go:     {"go"},
 	Python: pythonCandidates(),

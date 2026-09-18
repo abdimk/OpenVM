@@ -1,4 +1,4 @@
-package utils
+package swap
 
 import (
 	"context"
@@ -7,16 +7,18 @@ import (
 	"path/filepath"
 	"runtime"
 	"time"
+
+	"github.com/abdimk/openvm/internals/utils"
 )
 
 func InstallRustArchive(ctx context.Context, archivePath, filename string, report progressFunc) (installDir string, err error) {
 	if report == nil {
-		report = func(DownloadProgressMsg) {}
+		report = func(utils.DownloadProgressMsg) {}
 	}
 
-	report(DownloadProgressMsg{Phase: PhaseExtracting, File: filename})
+	report(utils.DownloadProgressMsg{Phase: utils.PhaseExtracting, File: filename})
 
-	extractDir := filepath.Join(SwapFilesDir(), "extract_"+fmt.Sprint(time.Now().UnixNano()))
+	extractDir := filepath.Join(utils.SwapFilesDir(), "extract_"+fmt.Sprint(time.Now().UnixNano()))
 
 	defer func() {
 		if err != nil {
@@ -42,10 +44,10 @@ func InstallRustArchive(ctx context.Context, archivePath, filename string, repor
 		return "", err
 	}
 
-	report(DownloadProgressMsg{Phase: PhaseSwapping, File: filename})
+	report(utils.DownloadProgressMsg{Phase: utils.PhaseSwapping, File: filename})
 
-	installDir = filepath.Join(SwapFilesDir(), "rust")
-	backupDir := filepath.Join(SwapFilesDir(), "rust.bak")
+	installDir = filepath.Join(utils.SwapFilesDir(), "rust")
+	backupDir := filepath.Join(utils.SwapFilesDir(), "rust.bak")
 
 	os.RemoveAll(backupDir)
 
@@ -63,7 +65,7 @@ func InstallRustArchive(ctx context.Context, archivePath, filename string, repor
 		return "", fmt.Errorf("activating new toolchain: %w", err)
 	}
 
-	if err = activatePath(filepath.Join(installDir, "bin")); err != nil {
+	if err = utils.ActivatePath(filepath.Join(installDir, "bin")); err != nil {
 
 		os.RemoveAll(installDir)
 		if _, statErr := os.Stat(backupDir); statErr == nil {

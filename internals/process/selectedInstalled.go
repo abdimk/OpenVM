@@ -15,6 +15,7 @@ import (
 
 	ui "github.com/abdimk/openvm/cmd/ui"
 	"github.com/abdimk/openvm/internals/api"
+	"github.com/abdimk/openvm/internals/swap"
 	"github.com/abdimk/openvm/internals/utils"
 )
 
@@ -627,19 +628,19 @@ func (m *SelectedInstalledModel) startDownload(entry versionEntry) tea.Cmd {
 		var instErr error
 		switch {
 		case isClang(m.language):
-			installDir, instErr = utils.InstallClangArchive(ctx, archivePath, filename, report)
+			installDir, instErr = swap.InstallClangArchive(ctx, archivePath, filename, report)
 		case isPython(m.language):
-			installDir, instErr = utils.InstallPythonArchive(ctx, archivePath, filename, report)
+			installDir, instErr = swap.InstallPythonArchive(ctx, archivePath, filename, report)
 		case isRust(m.language):
-			installDir, instErr = utils.InstallRustArchive(ctx, archivePath, filename, report)
+			installDir, instErr = swap.InstallRustArchive(ctx, archivePath, filename, report)
 		case isNode(m.language):
-			installDir, instErr = utils.InstallNodeArchive(ctx, archivePath, filename, report)
+			installDir, instErr = swap.InstallNodeArchive(ctx, archivePath, filename, report)
 		case isDocker(m.language):
-			installDir, instErr = utils.InstallDockerArchive(ctx, archivePath, filename, report)
+			installDir, instErr = swap.InstallDockerArchive(ctx, archivePath, filename, report)
 		case isKubernetes(m.language):
-			installDir, instErr = utils.InstallKubectlBinary(ctx, archivePath, filename, report)
+			installDir, instErr = swap.InstallKubectlBinary(ctx, archivePath, filename, report)
 		default:
-			installDir, instErr = utils.InstallGoArchive(ctx, archivePath, filename, report)
+			installDir, instErr = swap.InstallGoArchive(ctx, archivePath, filename, report)
 		}
 		if instErr != nil {
 			if ctx.Err() != nil {

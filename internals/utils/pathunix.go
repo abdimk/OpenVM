@@ -3,27 +3,28 @@ package utils
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 )
 
-func activatePath(dir string) error {
+func ActivatePath(dir string) error {
 	if runtime.GOOS == "windows" {
-		if err := ensureWindowsPath(dir); err != nil {
+		if err := EnsureWindowsPath(dir); err != nil {
 			return err
 		}
-		prependProcessPath(dir)
+		PrependProcessPath(dir)
 		return nil
 	}
 	if err := ensureUnixPath(dir); err != nil {
 		return err
 	}
-	prependProcessPath(dir)
+	PrependProcessPath(dir)
 	return nil
 }
 
-func prependProcessPath(dir string) {
+func PrependProcessPath(dir string) {
 	sep := string(os.PathListSeparator)
 	cur := os.Getenv("PATH")
 	if cur == "" {
@@ -40,6 +41,20 @@ func prependProcessPath(dir string) {
 		}
 	}
 	_ = os.Setenv("PATH", dir+sep+cur)
+}
+
+func EnsureWindowsPath(dir string) error {
+
+	script := fmt.Sprintf(
+		`$p=[Environment]::GetEnvironmentVariable('Path','User'); if($p -notlike '*%s*'){[Environment]::SetEnvironmentVariable('Path', '%s;'+$p, 'User')}`,
+		dir, dir,
+	)
+	cmd := exec.Command("powershell", "-NoProfile", "-Command", script)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("adding %s to user PATH: %w: %s", dir, err, strings.TrimSpace(string(out)))
+	}
+	return nil
 }
 
 func ensureUnixPath(dir string) error {

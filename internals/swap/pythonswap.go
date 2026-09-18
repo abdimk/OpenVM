@@ -1,4 +1,4 @@
-package utils
+package swap
 
 import (
 	"context"
@@ -7,16 +7,18 @@ import (
 	"path/filepath"
 	"runtime"
 	"time"
+
+	"github.com/abdimk/openvm/internals/utils"
 )
 
-func InstallDockerArchive(ctx context.Context, archivePath, filename string, report progressFunc) (installDir string, err error) {
+func InstallPythonArchive(ctx context.Context, archivePath, filename string, report progressFunc) (installDir string, err error) {
 	if report == nil {
-		report = func(DownloadProgressMsg) {}
+		report = func(utils.DownloadProgressMsg) {}
 	}
 
-	report(DownloadProgressMsg{Phase: PhaseExtracting, File: filename})
+	report(utils.DownloadProgressMsg{Phase: utils.PhaseExtracting, File: filename})
 
-	extractDir := filepath.Join(SwapFilesDir(), "extract_"+fmt.Sprint(time.Now().UnixNano()))
+	extractDir := filepath.Join(utils.SwapFilesDir(), "extract_"+fmt.Sprint(time.Now().UnixNano()))
 
 	defer func() {
 		if err != nil {
@@ -32,20 +34,19 @@ func InstallDockerArchive(ctx context.Context, archivePath, filename string, rep
 	if entries, _ := os.ReadDir(extractDir); len(entries) == 1 && entries[0].IsDir() {
 		srcRoot = filepath.Join(extractDir, entries[0].Name())
 	}
-
-	marker := "docker"
-	if runtime.GOOS == "windows" {
-		marker = "docker.exe"
+	marker := "python.exe"
+	if runtime.GOOS != "windows" {
+		marker = filepath.Join("bin", "python3")
 	}
 	if _, statErr := os.Stat(filepath.Join(srcRoot, marker)); statErr != nil {
 		err = fmt.Errorf("archive layout unexpected: no %s found in %s", marker, srcRoot)
 		return "", err
 	}
 
-	report(DownloadProgressMsg{Phase: PhaseSwapping, File: filename})
+	report(utils.DownloadProgressMsg{Phase: utils.PhaseSwapping, File: filename})
 
-	installDir = filepath.Join(SwapFilesDir(), "docker")
-	backupDir := filepath.Join(SwapFilesDir(), "docker.bak")
+	installDir = filepath.Join(utils.SwapFilesDir(), "python")
+	backupDir := filepath.Join(utils.SwapFilesDir(), "python.bak")
 
 	os.RemoveAll(backupDir)
 
@@ -63,7 +64,11 @@ func InstallDockerArchive(ctx context.Context, archivePath, filename string, rep
 		return "", fmt.Errorf("activating new toolchain: %w", err)
 	}
 
-	if err = activatePath(installDir); err != nil {
+	binDir := installDir
+	if runtime.GOOS != "windows" {
+		binDir = filepath.Join(installDir, "bin")
+	}
+	if err = utils.ActivatePath(binDir); err != nil {
 
 		os.RemoveAll(installDir)
 		if _, statErr := os.Stat(backupDir); statErr == nil {

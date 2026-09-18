@@ -155,7 +155,7 @@ func repairLines() []string {
 			continue
 		}
 
-		if err := activatePath(toolPathDir(spec.dir)); err != nil {
+		if err := ActivatePath(toolPathDir(spec.dir)); err != nil {
 			lines = append(lines, fmt.Sprintf("[%s] PATH repair failed: %v", spec.dir, err))
 			continue
 		}

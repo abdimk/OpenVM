@@ -1,21 +1,23 @@
-package utils
+package swap
 
 import (
 	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/abdimk/openvm/internals/utils"
 )
 
 func InstallKubectlBinary(ctx context.Context, binaryPath, filename string, report progressFunc) (installDir string, err error) {
 	if report == nil {
-		report = func(DownloadProgressMsg) {}
+		report = func(utils.DownloadProgressMsg) {}
 	}
 
-	report(DownloadProgressMsg{Phase: PhaseSwapping, File: filename})
+	report(utils.DownloadProgressMsg{Phase: utils.PhaseSwapping, File: filename})
 
-	installDir = filepath.Join(SwapFilesDir(), "kubectl")
-	backupDir := filepath.Join(SwapFilesDir(), "kubectl.bak")
+	installDir = filepath.Join(utils.SwapFilesDir(), "kubectl")
+	backupDir := filepath.Join(utils.SwapFilesDir(), "kubectl.bak")
 
 	os.RemoveAll(backupDir)
 
@@ -42,7 +44,7 @@ func InstallKubectlBinary(ctx context.Context, binaryPath, filename string, repo
 		return "", err
 	}
 
-	if err = activatePath(installDir); err != nil {
+	if err = utils.ActivatePath(installDir); err != nil {
 		os.RemoveAll(installDir)
 		restoreSwapDir(backupDir, installDir)
 		return "", err
