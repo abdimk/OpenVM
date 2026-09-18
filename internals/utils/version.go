@@ -81,7 +81,7 @@ func buildVersionContent(width int) string {
 		row("Version", versionValue),
 		row("Machine", machineValue),
 		row("Path", pathValue),
-		row("Packages", packagesValue),
+		row("Packages", fmt.Sprintf("[ %s ]",packagesValue)),
 		row("Storage", storageValue),
 		row("Developer", developer),
 	}, "\n"))
