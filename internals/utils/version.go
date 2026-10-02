@@ -92,7 +92,7 @@ func buildVersionContent(width int) string {
 func installedToolchains() []string {
 	var names []string
 	dir := SwapFilesDir()
-	for _, tool := range []string{"go", "python", "node", "llvm", "docker", "kubectl"} {
+	for _, tool := range []string{"go", "python", "node", "rust", "llvm", "docker", "kubectl"} {
 		if _, err := os.Stat(filepath.Join(dir, tool)); err == nil {
 			names = append(names, tool)
 		}

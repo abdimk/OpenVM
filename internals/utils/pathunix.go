@@ -45,9 +45,10 @@ func PrependProcessPath(dir string) {
 
 func EnsureWindowsPath(dir string) error {
 
+	needle := strings.ReplaceAll(dir, "'", "''")
 	script := fmt.Sprintf(
-		`$p=[Environment]::GetEnvironmentVariable('Path','User'); if($p -notlike '*%s*'){[Environment]::SetEnvironmentVariable('Path', '%s;'+$p, 'User')}`,
-		dir, dir,
+		`$p=[Environment]::GetEnvironmentVariable('Path','User'); if([string]::IsNullOrEmpty($p)){[Environment]::SetEnvironmentVariable('Path','%s','User')} elseif($p -notlike '*%s*'){[Environment]::SetEnvironmentVariable('Path','%s;'+$p,'User')}`,
+		needle, needle, needle,
 	)
 	cmd := exec.Command("powershell", "-NoProfile", "-Command", script)
 	out, err := cmd.CombinedOutput()
@@ -67,7 +68,7 @@ func ensureUnixPath(dir string) error {
 	if readErr != nil && !os.IsNotExist(readErr) {
 		return fmt.Errorf("adding %s to %s: %w", dir, rc, readErr)
 	}
-	if strings.Contains(string(existing), dir) {
+	if strings.Contains(string(existing), line) {
 		return nil
 	}
 

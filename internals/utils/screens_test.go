@@ -163,7 +163,7 @@ func TestInstalledConfirmView(t *testing.T) {
 	m.confirmYes = true
 
 	view := m.ConfirmationView()
-	if !strings.Contains(view, "Are you sure you wanted to remove Go ?") {
+	if !strings.Contains(view, "Are you sure you want to remove Go?") {
 		t.Errorf("confirmation missing prompt, got %q", view)
 	}
 	if !strings.Contains(view, "Yes") {

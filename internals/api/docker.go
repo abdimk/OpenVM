@@ -12,6 +12,7 @@ import (
 const dockerDownloadBase = "https://download.docker.com"
 
 var dockerArchiveRe = regexp.MustCompile(`^docker-([0-9]+\.[0-9]+\.[0-9]+)\.(tgz|zip)$`)
+var dockerVersionRe = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
 var dockerHrefRe = regexp.MustCompile(`(?i)\bhref\s*=\s*["']([^"']+)["']`)
 
 type DockerBundle struct {
@@ -122,7 +123,7 @@ func parseDockerListing(body, base, ext, goos, goarch string) []Release {
 }
 
 func FetchDockerArtifact(version string) (File, error) {
-	if !dockerArchiveRe.MatchString("docker-" + version + ".tgz") {
+	if !dockerVersionRe.MatchString(version) {
 		return File{}, fmt.Errorf("invalid docker version %q", version)
 	}
 	releases, err := FetchDockerReleases()

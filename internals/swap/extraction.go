@@ -71,7 +71,13 @@ func extractZipEntry(f *zip.File, destDir string) error {
 	}
 	defer rc.Close()
 
-	out, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, f.Mode())
+	mode := f.Mode()
+	if mode == 0 {
+		// Windows-created zips often carry no Unix mode; fall back to 0644
+		// instead of creating an unreadable file.
+		mode = 0o644
+	}
+	out, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
 	if err != nil {
 		return err
 	}
@@ -193,12 +199,16 @@ type tarSymlinkEntry struct {
 
 func createSymlink(target, linkname string) error {
 	_ = os.Remove(target)
-	if err := os.Symlink(linkname, target); err == nil || os.IsExist(err) {
+	if err := os.Symlink(linkname, target); err == nil {
 		return nil
 	}
 	return copySymlinkReferent(target, linkname)
 }
 
+// copySymlinkReferent materializes a symlink as a real file when the platform
+// refuses to create one (notably Windows without the symlink privilege). A
+// dangling or directory referent is skipped, but any real I/O failure is
+// reported so extraction cannot silently produce a missing file.
 func copySymlinkReferent(target, linkname string) error {
 	ref := linkname
 	if !filepath.IsAbs(ref) {
@@ -207,13 +217,17 @@ func copySymlinkReferent(target, linkname string) error {
 	ref = filepath.Clean(ref)
 
 	fi, err := os.Stat(ref)
-	if err != nil || fi.IsDir() {
+	if err != nil {
+		// Dangling convenience link: nothing to copy.
+		return nil
+	}
+	if fi.IsDir() {
 		return nil
 	}
 
 	in, err := os.Open(ref)
 	if err != nil {
-		return nil
+		return fmt.Errorf("reading symlink target %s: %w", ref, err)
 	}
 	defer in.Close()
 
@@ -223,10 +237,12 @@ func copySymlinkReferent(target, linkname string) error {
 
 	out, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, fi.Mode())
 	if err != nil {
-		return nil
+		return fmt.Errorf("materializing symlink %s: %w", target, err)
 	}
 	defer out.Close()
 
-	_, err = io.Copy(out, in)
-	return err
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	return out.Sync()
 }

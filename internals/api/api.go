@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
+	"strings"
 	"time"
 )
 
@@ -13,6 +15,21 @@ const (
 	goAllVersionsURL   = "https://go.dev/dl/?mode=json&include=all"
 	requestHTTPTimeout = 15 * time.Second
 )
+
+// maxResponseBytes bounds how much of a remote response we buffer, so a
+// misbehaving or hostile server cannot exhaust memory.
+const maxResponseBytes = 16 << 20
+
+func readAllLimited(r io.Reader, limit int64) ([]byte, error) {
+	body, err := io.ReadAll(io.LimitReader(r, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(body)) > limit {
+		return nil, fmt.Errorf("response exceeds %d bytes", limit)
+	}
+	return body, nil
+}
 
 func FetchStableReleases() ([]Release, error) {
 	return fetchReleases(goVersionsURL)
@@ -63,6 +80,40 @@ func ResolveFileSize(file *File) error {
 	return nil
 }
 
+var sha256HexRe = regexp.MustCompile(`^[0-9a-f]{64}$`)
+
+
+func fetchSHA256Sidecar(client *http.Client, artifactURL string) string {
+	resp, err := client.Get(artifactURL + ".sha256")
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<10))
+	if err != nil {
+		return ""
+	}
+	for _, field := range strings.Fields(string(body)) {
+		lower := strings.ToLower(field)
+		if sha256HexRe.MatchString(lower) {
+			return lower
+		}
+	}
+	return ""
+}
+
+
+func ResolveChecksum(file *File) {
+	if file == nil || file.SHA256 != "" || file.URL == "" {
+		return
+	}
+	client := &http.Client{Timeout: requestHTTPTimeout}
+	file.SHA256 = fetchSHA256Sidecar(client, file.URL)
+}
+
 func fetchReleases(url string) ([]Release, error) {
 	client := &http.Client{Timeout: requestHTTPTimeout}
 
@@ -76,7 +127,7 @@ func fetchReleases(url string) ([]Release, error) {
 		return nil, fmt.Errorf("fetching Go versions: unexpected status %s", resp.Status)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := readAllLimited(resp.Body, maxResponseBytes)
 	if err != nil {
 		return nil, fmt.Errorf("reading Go versions response: %w", err)
 	}

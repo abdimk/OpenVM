@@ -44,7 +44,7 @@ func FetchNodeVersions() ([]NodeReleaseInfo, error) {
 		return nil, fmt.Errorf("fetching Node versions: unexpected status %s", resp.Status)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := readAllLimited(resp.Body, maxResponseBytes)
 	if err != nil {
 		return nil, fmt.Errorf("reading Node versions response: %w", err)
 	}
@@ -112,24 +112,23 @@ func nodeTag(version string) string {
 }
 
 func FetchNodeArtifact(version string) (File, error) {
-	file, ok := nodeArtifactForMachine(version, runtime.GOOS, runtime.GOARCH)
-	if !ok {
-		return File{}, fmt.Errorf("no downloadable Node %s artifact for %s/%s", version, runtime.GOOS, runtime.GOARCH)
-	}
-	return file, nil
+	return nodeArtifactForMachineChecked(version, runtime.GOOS, runtime.GOARCH)
 }
 
-func nodeArtifactForMachine(version, targetOS, targetArch string) (File, bool) {
+// nodeArtifactForMachineChecked distinguishes "this platform is unsupported"
+// and "no asset for this version" from a transient failure to fetch checksums,
+// so the caller can surface a real network error instead of hiding it.
+func nodeArtifactForMachineChecked(version, targetOS, targetArch string) (File, error) {
 	token, exts, ok := nodeArtifactTarget(targetOS, targetArch)
 	if !ok {
-		return File{}, false
+		return File{}, fmt.Errorf("no downloadable Node %s artifact for %s/%s", version, targetOS, targetArch)
 	}
 
 	tag := nodeTag(version)
 
 	checksums, err := fetchNodeSHASUMS(tag)
 	if err != nil {
-		return File{}, false
+		return File{}, fmt.Errorf("fetching Node checksums for %s: %w", tag, err)
 	}
 
 	for _, ext := range exts {
@@ -146,9 +145,15 @@ func nodeArtifactForMachine(version, targetOS, targetArch string) (File, bool) {
 			SHA256:   sha,
 			Kind:     "archive",
 			URL:      fmt.Sprintf("%s/%s/%s", nodeDistBase, tag, filename),
-		}, true
+		}, nil
 	}
-	return File{}, false
+	return File{}, fmt.Errorf("no downloadable Node %s artifact for %s/%s", version, targetOS, targetArch)
+}
+
+// nodeArtifactForMachine keeps the boolean form used by tests.
+func nodeArtifactForMachine(version, targetOS, targetArch string) (File, bool) {
+	file, err := nodeArtifactForMachineChecked(version, targetOS, targetArch)
+	return file, err == nil
 }
 
 func nodeArtifactTarget(goos, goarch string) (token string, exts []string, ok bool) {

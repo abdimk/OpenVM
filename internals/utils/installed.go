@@ -221,7 +221,7 @@ func (m InstalledModel) ConfirmationView() string {
 
 	return bracket(yes) + gray.Render(" | ") + bracket(no) +
 		"  " +
-		pink.Render(fmt.Sprintf("Are you sure you wanted to remove %s ?", name)) +
+		pink.Render(fmt.Sprintf("Are you sure you want to remove %s?", name)) +
 		"   " +
 		gray.Render("←/→ choose • enter confirm • esc back")
 }

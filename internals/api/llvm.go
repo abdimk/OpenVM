@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"runtime"
 	"strings"
@@ -75,7 +74,7 @@ func fetchGitHubReleases(url string) ([]GitHubRelease, error) {
 		return nil, fmt.Errorf("fetching LLVM releases: unexpected status %s", resp.Status)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := readAllLimited(resp.Body, maxResponseBytes)
 	if err != nil {
 		return nil, fmt.Errorf("reading LLVM releases response: %w", err)
 	}

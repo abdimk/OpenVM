@@ -139,7 +139,9 @@ func parseRustManifest(body []byte, triple string) (*rustManifestTarget, error) 
 
 		if section == "[pkg.rust]" && key == "version" {
 			if v, er := strconv.Unquote(strings.TrimSpace(value)); er == nil {
-				rustVersion = strings.Fields(v)[0]
+				if fields := strings.Fields(v); len(fields) > 0 {
+					rustVersion = fields[0]
+				}
 			}
 			continue
 		}

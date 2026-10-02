@@ -67,16 +67,24 @@ func TestBuildVersionEntriesKeepsLazyReleases(t *testing.T) {
 }
 
 func TestBuildVersionEntriesPinsCurrentAndPrefillsGoFiles(t *testing.T) {
+	// Use the host platform so the test is not Windows/amd64-specific, and pass
+	// the current version explicitly so the result cannot depend on a managed
+	// toolchain happening to be installed on the machine.
+	goos, goarch := api.MachineOS(), api.MachineArch()
+	filesFor := func(version string) []api.File {
+		return []api.File{{
+			Filename: "go" + version + "." + goos + "-" + goarch + ".zip",
+			OS:       goos,
+			Arch:     goarch,
+			Kind:     "archive",
+		}}
+	}
 	releases := []api.Release{
-		{Version: "go1.25.2", Stable: true, Files: []api.File{
-			{Filename: "go1.25.2.windows-amd64.zip", OS: "windows", Arch: "amd64", Kind: "archive"},
-		}},
-		{Version: "go1.25.1", Stable: true, Files: []api.File{
-			{Filename: "go1.25.1.windows-amd64.zip", OS: "windows", Arch: "amd64", Kind: "archive"},
-		}},
+		{Version: "go1.25.2", Stable: true, Files: filesFor("1.25.2")},
+		{Version: "go1.25.1", Stable: true, Files: filesFor("1.25.1")},
 	}
 
-	entries := buildVersionEntries(utils.Language{Name: utils.Go, Version: "go version go1.25.1 windows/amd64"}, "", releases)
+	entries := buildVersionEntries(utils.Language{Name: utils.Go}, "go1.25.1", releases)
 	if len(entries) != 2 {
 		t.Fatalf("entries = %d, want 2", len(entries))
 	}

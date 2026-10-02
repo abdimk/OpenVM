@@ -61,7 +61,7 @@ func removeFromPath(dir string) error {
 
 func removeWindowsPathEntry(dir string) error {
 	script := fmt.Sprintf(
-		"$p=[Environment]::GetEnvironmentVariable('Path','User'); $needle='%s'; $new=($p -split ';' | Where-Object { $_ -and ($_.TrimEnd('\\') -ine $needle) }) -join ';'; if($p -ne $new){[Environment]::SetEnvironmentVariable('Path',$new,'User')}",
+		"$p=[Environment]::GetEnvironmentVariable('Path','User'); if([string]::IsNullOrEmpty($p)){exit 0}; $needle='%s'; $new=($p -split ';' | Where-Object { $_ -and ($_.TrimEnd('\\') -ine $needle) }) -join ';'; if($p -ne $new){[Environment]::SetEnvironmentVariable('Path',$new,'User')}",
 		strings.ReplaceAll(dir, "'", "''"),
 	)
 	cmd := exec.Command("powershell", "-NoProfile", "-Command", script)
@@ -73,7 +73,7 @@ func removeWindowsPathEntry(dir string) error {
 }
 
 func removeUnixPathEntry(dir string) error {
-	rc, _, err := unixShellConfig(dir)
+	rc, line, err := unixShellConfig(dir)
 	if err != nil {
 		return err
 	}
@@ -86,10 +86,13 @@ func removeUnixPathEntry(dir string) error {
 		return fmt.Errorf("reading %s: %w", rc, err)
 	}
 
+	// Match the exact line we append rather than any line that happens to
+	// contain dir as a substring, which could delete unrelated exports.
+	want := strings.TrimSpace(line)
 	lines := strings.Split(string(b), "\n")
 	kept := lines[:0]
 	for _, l := range lines {
-		if strings.Contains(l, dir) {
+		if strings.TrimSpace(l) == want {
 			continue
 		}
 		kept = append(kept, l)

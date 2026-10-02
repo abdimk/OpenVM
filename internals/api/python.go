@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"regexp"
 	"runtime"
@@ -91,7 +90,7 @@ func fetchPythonVersionsFromPeps() ([]PythonReleaseInfo, error) {
 		return nil, fmt.Errorf("unexpected status %s", resp.Status)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := readAllLimited(resp.Body, maxResponseBytes)
 	if err != nil {
 		return nil, fmt.Errorf("reading response: %w", err)
 	}
@@ -126,7 +125,7 @@ func fetchPythonVersionsFromFTP() ([]string, error) {
 		return nil, fmt.Errorf("unexpected status %s", resp.Status)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := readAllLimited(resp.Body, maxResponseBytes)
 	if err != nil {
 		return nil, fmt.Errorf("reading FTP index: %w", err)
 	}
@@ -300,7 +299,7 @@ func fetchPythonWindowsManifest(version string) (*pythonWindowsManifest, error) 
 		return nil, fmt.Errorf("unexpected status %s", resp.Status)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := readAllLimited(resp.Body, maxResponseBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -448,7 +447,7 @@ func (c pythonStandaloneConfig) tags() ([]string, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("fetching python build-standalone tags: unexpected status %s", resp.Status)
 	}
-	body, err := io.ReadAll(resp.Body)
+	body, err := readAllLimited(resp.Body, maxResponseBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -508,7 +507,7 @@ func (c pythonStandaloneConfig) shaSums(tag string) (map[string]string, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("fetching python build-standalone checksums: unexpected status %s", resp.Status)
 	}
-	body, err := io.ReadAll(resp.Body)
+	body, err := readAllLimited(resp.Body, maxResponseBytes)
 	if err != nil {
 		return nil, err
 	}

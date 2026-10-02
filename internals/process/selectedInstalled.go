@@ -532,6 +532,7 @@ func (m *SelectedInstalledModel) resolveEntryArtifact(entry versionEntry) tea.Cm
 	return func() tea.Msg {
 		file, err := resolve(version)
 		if err == nil {
+			api.ResolveChecksum(&file)
 			_ = api.ResolveFileSize(&file)
 		}
 		return ArtifactResolvedMsg{Entry: entry, File: file, Err: err}
@@ -603,6 +604,9 @@ func (m SelectedInstalledModel) Cancel() {
 
 func (m *SelectedInstalledModel) startDownload(entry versionEntry) tea.Cmd {
 	version := entry.release.Version
+	if version == "" {
+		version = entry.title
+	}
 	filename := entry.file.Filename
 	url := entry.file.URL
 	if url == "" {

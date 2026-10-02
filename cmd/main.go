@@ -60,7 +60,6 @@ func newModel() *model {
 		loadingSpinner: ui.SpinnerModel("Loading..."),
 		list:           ui.New("Available Commands", items, 80, 20),
 		screen:         MainMenuScreen,
-		installed:      utils.NewInstalledModel(),
 		version:        utils.NewVersionModel(),
 		install:        utils.NewInstallModel(),
 		update:         utils.NewUpdateCheckModel(),
@@ -277,13 +276,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.handleResize(msg, cmd)
 
 	case Version:
-		if ws, ok := msg.(tea.WindowSizeMsg); ok {
-			m.width = ws.Width
-			m.height = ws.Height
-			m.updateLayout()
-			return m, nil
-		}
-
 		updateModel, cmd := m.version.Update(msg)
 		m.version = updateModel.(utils.VersionModel)
 		return m, cmd
