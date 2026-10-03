@@ -31,16 +31,16 @@ cd OpenVM
 go mod tidy
 ```
 
-3. Run the application:
+3. Build the application:
 
 ```bash
-go run .
+make build
 ```
 
-4. Build the application:
+4. Run the application:
 
 ```bash
-go build
+make run
 ```
 
 ## Notes
