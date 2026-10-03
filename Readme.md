@@ -1,6 +1,6 @@
 <div align="center">
   <img src="public\openvm.png" alt="OpenVM logo" width=600 height=600>
-  <p><strong>A universal version manager for developers</strong></p>
+  <p><strong>Manage development tools easily</strong></p>
 </div>
 
 ---
@@ -11,6 +11,42 @@
 
 <p>OpenVM is a Terminal User Interface (TUI) for managing development tools and programming languages.It simplifies installing, updating, switching between versions, and repairing tools from one unified terminal interface.</p>
 
+
+## Contribution
+
+Contributions are welcome! Help improve the code quality and add new features.
+
+### Getting Started
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/yourusername/OpenVM.git
+cd OpenVM
+```
+
+2. Install dependencies:
+
+```bash
+go mod tidy
+```
+
+3. Run the application:
+
+```bash
+go run .
+```
+
+4. Build the application:
+
+```bash
+go build
+```
+
+## Notes
+
 > [!NOTE]
-> This is an experimental tool
+> This is an experimental tool and is missing some critical flows and replacement paths.
+
+
 
