@@ -9,9 +9,6 @@
 <p>OpenVM is a Terminal User Interface (TUI) for managing development tools and programming languages.</p
 <p>It simplifies installing, updating, switching between versions, and repairing tools from one unified terminal interface.</p>
 
-<p>OpenVM is a Terminal User Interface (TUI) for managing development tools and programming languages.It simplifies installing, updating, switching between versions, and repairing tools from one unified terminal interface.</p>
-
-
 ## Contribution
 
 Contributions are welcome! Help improve the code quality and add new features.
